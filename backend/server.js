@@ -19,7 +19,8 @@ const {
 } = require('./models/database');
 
 const app = express();
-const port = 3001;
+const port = process.env.PORT || 3001;
+const host = process.env.HOST || 'localhost';
 
 // 获取系统环境变量
 const processEnv = process.env;
@@ -626,8 +627,8 @@ app.get('/api/download/:taskId', (req, res) => {
   fileStream.pipe(res);
 });
 
-app.listen(port, () => {
-  console.log(`服务器运行在 http://localhost:${port}`);
+app.listen(port, host, () => {
+  console.log(`服务器运行在 http://${host}:${port}`);
   
   // 确保默认下载目录存在
   ensureDownloadDir('./downloads');

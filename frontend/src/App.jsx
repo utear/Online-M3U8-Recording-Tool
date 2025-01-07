@@ -25,8 +25,8 @@ const { Header, Content } = Layout
 const { Option } = Select
 const { Panel } = Collapse
 
-const API_BASE_URL = 'http://localhost:3001'
-const WS_URL = 'ws://localhost:3002'
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001'
+const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3002'
 
 // 配置axios默认baseURL
 axios.defaults.baseURL = API_BASE_URL;
@@ -972,7 +972,7 @@ function AppContent() {
         } catch (error) {
           console.error('处理WebSocket消息时出错:', error);
         }
-      };
+      });
 
       ws.onerror = (error) => {
         console.error('WebSocket错误:', error);
