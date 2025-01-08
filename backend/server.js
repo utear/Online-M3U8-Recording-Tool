@@ -21,6 +21,7 @@ const {
 const app = express();
 const port = process.env.PORT || 3001;
 const host = process.env.HOST || 'localhost';
+const wsPort = process.env.WS_PORT || 3002;
 
 // 获取系统环境变量
 const processEnv = process.env;
@@ -138,7 +139,7 @@ const handleProcessInput = (taskId, input) => {
 };
 
 // WebSocket服务器
-const wss = new WebSocket.Server({ port: 3002 });
+const wss = new WebSocket.Server({ port: wsPort });
 
 // 存储WebSocket连接和任务ID的映射
 const wsConnections = new Map();
@@ -628,7 +629,9 @@ app.get('/api/download/:taskId', (req, res) => {
 });
 
 app.listen(port, host, () => {
-  console.log(`服务器运行在 http://${host}:${port}`);
+  const displayHost = host === '0.0.0.0' ? 'localhost' : host;
+  console.log(`服务器运行在 http://${displayHost}:${port}`);
+  console.log(`实际监听地址: http://${host}:${port}`);
   
   // 确保默认下载目录存在
   ensureDownloadDir('./downloads');

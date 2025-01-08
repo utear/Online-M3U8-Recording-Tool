@@ -49,8 +49,13 @@ HOST=0.0.0.0  # 使用 0.0.0.0 允许外部访问
 
 2. 前端配置 (`frontend/.env`):
 ```bash
-VITE_API_BASE_URL=http://你的服务器地址:3001
-VITE_WS_URL=ws://你的服务器地址:3002
+# 前端访问地址和端口配置
+VITE_HOST=0.0.0.0  # 允许外部访问
+VITE_PORT=3005     # 前端服务端口
+
+# API 接口配置
+VITE_API_BASE_URL=http://localhost:3001
+VITE_WS_URL=ws://localhost:3002
 ```
 
 注意：开发环境可使用 localhost，生产环境请替换为实际的服务器地址。
@@ -96,4 +101,3 @@ npm run dev
 │   └── server.js    # 后端主程序
 ├── frontend/        # 前端代码
 └── Sever.exe       # N_m3u8DL-RE 程序
-```
