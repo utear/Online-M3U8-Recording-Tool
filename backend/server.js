@@ -235,6 +235,31 @@ wss.on('connection', (ws) => {
   });
 });
 
+// 添加消息缓冲区
+const messageBuffer = new Map();
+const MESSAGE_BATCH_INTERVAL = 200; // 200ms发送一次消息
+
+// 批量发送消息的函数
+const flushMessages = (taskId) => {
+  const buffer = messageBuffer.get(taskId);
+  if (buffer && buffer.length > 0) {
+    const lastMessage = buffer[buffer.length - 1];
+    wss.clients.forEach(client => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify(lastMessage));
+      }
+    });
+    messageBuffer.set(taskId, []);
+  }
+};
+
+// 设置定时发送
+setInterval(() => {
+  for (const taskId of messageBuffer.keys()) {
+    flushMessages(taskId);
+  }
+}, MESSAGE_BATCH_INTERVAL);
+
 // 广播任务输出到订阅的客户端
 const broadcastTaskOutput = (taskId, output, type = 'terminal_output') => {
   wss.clients.forEach(client => {
@@ -362,16 +387,15 @@ app.post('/api/start-recording', async (req, res) => {
         }
       }
       
-      // 广播到订阅的客户端
-      wss.clients.forEach(client => {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify({
-            type: 'progress',
-            taskId,
-            output: output + '\n',  // 确保每条输出后面都有换行
-            fileSize: task ? task.fileSize : 0
-          }));
-        }
+      // 将消息添加到缓冲区
+      if (!messageBuffer.has(taskId)) {
+        messageBuffer.set(taskId, []);
+      }
+      messageBuffer.get(taskId).push({
+        type: 'progress',
+        taskId,
+        output: output + '\n',  // 确保每条输出后面都有换行
+        fileSize: task ? task.fileSize : 0
       });
       
       // 更新数据库
@@ -384,17 +408,16 @@ app.post('/api/start-recording', async (req, res) => {
       const error = iconv.decode(data, 'gb2312');
       console.error(`任务 ${taskId} 错误:`, error.trim());
       
-      // 广播错误信息
-      wss.clients.forEach(client => {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify({
-            type: 'progress',
-            taskId,
-            output: `错误: ${error.trim()}`
-          }));
-        }
+      // 将消息添加到缓冲区
+      if (!messageBuffer.has(taskId)) {
+        messageBuffer.set(taskId, []);
+      }
+      messageBuffer.get(taskId).push({
+        type: 'progress',
+        taskId,
+        output: `错误: ${error.trim()}`
       });
-
+      
       // 更新数据库
       await updateTaskStatus(taskId, 'running', `错误: ${error.trim()}`);
       await addTaskHistory(taskId, `错误: ${error.trim()}`);
@@ -428,16 +451,16 @@ app.post('/api/start-recording', async (req, res) => {
           await updateTaskOutput(taskId, task.outputFile, fileSize);
         }
         
-        wss.clients.forEach(client => {
-          if (client.readyState === WebSocket.OPEN) {
-            client.send(JSON.stringify({
-              type: 'status',
-              taskId,
-              status,
-              fileSize,
-              outputFile: task.outputFile
-            }));
-          }
+        // 将消息添加到缓冲区
+        if (!messageBuffer.has(taskId)) {
+          messageBuffer.set(taskId, []);
+        }
+        messageBuffer.get(taskId).push({
+          type: 'status',
+          taskId,
+          status,
+          fileSize,
+          outputFile: task.outputFile
         });
       }
     });

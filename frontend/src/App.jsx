@@ -646,7 +646,7 @@ function AppContent() {
   const subscribeToTask = useCallback((taskId) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       console.log('WebSocket未连接，无法订阅任务');
-      return false;
+      return;
     }
     
     if (subscribedTasksRef.current.has(taskId)) {
@@ -662,38 +662,6 @@ function AppContent() {
     subscribedTasksRef.current.add(taskId);
     return true;
   }, []);
-
-  // 关闭控制台
-  const closeConsole = useCallback((taskId) => {
-    console.log('关闭控制台:', taskId);
-    
-    // 取消订阅
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({
-        type: 'unsubscribe',
-        taskId
-      }));
-      subscribedTasksRef.current.delete(taskId);
-    }
-    
-    // 更新终端状态
-    setTerminals(prev => {
-      const newTerminals = new Map(prev);
-      if (newTerminals.has(taskId)) {
-        const terminal = newTerminals.get(taskId);
-        terminal.visible = false;
-        // 保留输出，但清空输入
-        terminal.input = '';
-        newTerminals.set(taskId, { ...terminal });
-        terminalsRef.current = newTerminals;
-      }
-      return newTerminals;
-    });
-    
-    if (activeTerminal === taskId) {
-      setActiveTerminal(null);
-    }
-  }, [activeTerminal]);
 
   // 打开控制台
   const openConsole = useCallback((taskId) => {
@@ -748,6 +716,155 @@ function AppContent() {
     
     setActiveTerminal(taskId);
   }, [subscribeToTask]);
+
+  // 获取任务列表
+  const fetchTasks = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/tasks`);
+      setTasks(response.data);
+    } catch (error) {
+      console.error('获取任务列表失败:', error);
+      message.error('获取任务列表失败');
+    }
+  }, []);
+
+  // 使用 useMemo 缓存状态标签
+  const getStatusTag = useCallback((status) => {
+    const statusConfig = {
+      running: { color: 'processing', text: '录制中' },
+      completed: { color: 'success', text: '已完成' },
+      paused: { color: 'warning', text: '已暂停' },
+      failed: { color: 'error', text: '录制失败' }
+    };
+    const config = statusConfig[status] || { color: 'default', text: status };
+    return <Tag color={config.color}>{config.text}</Tag>;
+  }, []);
+
+  // 停止录制
+  const handleStopRecording = useCallback(async (taskId) => {
+    try {
+      await axios.post(`${API_BASE_URL}/api/stop-recording/${taskId}`);
+      message.success('停止录制');
+      fetchTasks();
+    } catch (error) {
+      message.error('停止录制失败');
+    }
+  }, [fetchTasks]);
+
+  // 下载文件
+  const handleDownload = useCallback(async (record) => {
+    try {
+      window.open(`${API_BASE_URL}/api/download/${record.id}`, '_blank');
+    } catch (error) {
+      message.error('下载失败: ' + error.message);
+    }
+  }, []);
+
+  // 删除任务
+  const deleteTask = useCallback(async (taskId) => {
+    try {
+      await axios.delete(`${API_BASE_URL}/api/task/${taskId}`);
+      message.success('删除成功');
+      fetchTasks();
+    } catch (error) {
+      message.error('删除失败');
+    }
+  }, [fetchTasks]);
+
+  // 查看历史记录
+  const viewHistory = useCallback((taskId) => {
+    setSelectedTaskId(taskId);
+    setHistoryModalVisible(true);
+  }, []);
+
+  // 优化任务控制按钮的渲染
+  const renderTaskControls = useCallback((record) => {
+    // 使用样式控制按钮显示/隐藏，避免条件渲染
+    const stopButtonStyle = {
+      display: record.status === 'running' ? 'inline-flex' : 'none',
+      alignItems: 'center'
+    };
+    const downloadButtonStyle = {
+      display: ['completed', 'paused'].includes(record.status) ? 'inline-flex' : 'none',
+      alignItems: 'center'
+    };
+
+    return (
+      <div className="operation-buttons">
+        <Button
+          type="primary"
+          danger
+          icon={<StopOutlined />}
+          onClick={() => handleStopRecording(record.id)}
+          style={stopButtonStyle}
+        >
+          停止
+        </Button>
+        <Button
+          type="primary"
+          icon={<DownloadOutlined />}
+          onClick={() => handleDownload(record)}
+          style={downloadButtonStyle}
+        >
+          下载
+        </Button>
+        <Button
+          type="primary"
+          icon={<DesktopOutlined />}
+          onClick={() => openConsole(record.id)}
+        >
+          控制台
+        </Button>
+        <Button
+          type="default"
+          icon={<HistoryOutlined />}
+          onClick={() => viewHistory(record.id)}
+        >
+          历史
+        </Button>
+        <Button
+          type="primary"
+          danger
+          icon={<DeleteOutlined />}
+          onClick={() => deleteTask(record.id)}
+        >
+          删除
+        </Button>
+      </div>
+    );
+  }, [handleStopRecording, handleDownload, openConsole, viewHistory, deleteTask]);
+
+  // 关闭控制台
+  const closeConsole = useCallback((taskId) => {
+    console.log('关闭控制台:', taskId);
+    
+    // 取消订阅
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'unsubscribe',
+        taskId
+      }));
+      subscribedTasksRef.current.delete(taskId);
+    }
+    
+    // 更新终端状态
+    setTerminals(prev => {
+      const newTerminals = new Map(prev);
+      if (newTerminals.has(taskId)) {
+        const terminal = newTerminals.get(taskId);
+        terminal.visible = false;
+        // 保留输出，但清空输入
+        terminal.input = '';
+        newTerminals.set(taskId, { ...terminal });
+        terminalsRef.current = newTerminals;
+      }
+      return newTerminals;
+    });
+    
+    if (activeTerminal === taskId) {
+      setActiveTerminal(null);
+    }
+  }, [activeTerminal]);
 
   // 处理终端输入
   const handleTerminalInput = useCallback((taskId, input, e) => {
@@ -855,6 +972,33 @@ function AppContent() {
       .join('\n');
   };
 
+  // 添加节流函数
+  const throttle = (func, limit) => {
+    let inThrottle;
+    return function(...args) {
+      if (!inThrottle) {
+        func.apply(this, args);
+        inThrottle = true;
+        setTimeout(() => inThrottle = false, limit);
+      }
+    }
+  };
+
+  // 创建节流后的更新函数
+  const throttledUpdateTasks = throttle((taskId, newStatus) => {
+    setTasks(prevTasks => {
+      return prevTasks.map(task => {
+        if (task.id === taskId) {
+          return {
+            ...task,
+            status: newStatus
+          };
+        }
+        return task;
+      });
+    });
+  }, 200); // 200ms的节流时间
+
   // WebSocket连接
   useEffect(() => {
     const connectWebSocket = () => {
@@ -921,19 +1065,8 @@ function AppContent() {
               break;
 
             case 'progress':
-              // 更新任务列表中的最新输出
-              setTasks(prevTasks => {
-                return prevTasks.map(task => {
-                  if (task.id === data.taskId) {
-                    return {
-                      ...task,
-                      lastOutput: formatTerminalOutput(data.output),
-                      fileSize: data.fileSize
-                    };
-                  }
-                  return task;
-                });
-              });
+              // 使用节流函数更新状态
+              throttledUpdateTasks(data.taskId, data.status);
               
               // 更新终端输出，但确保不重复添加相同的输出
               setTerminals(prev => {
@@ -972,7 +1105,7 @@ function AppContent() {
         } catch (error) {
           console.error('处理WebSocket消息时出错:', error);
         }
-      });
+      };
 
       ws.onerror = (error) => {
         console.error('WebSocket错误:', error);
@@ -1043,17 +1176,6 @@ function AppContent() {
       message.error('开始录制失败')
     } finally {
       setLoading(false)
-    }
-  }
-
-  // 停止录制
-  const handleStopRecording = async (taskId) => {
-    try {
-      await axios.post(`${API_BASE_URL}/api/stop-recording/${taskId}`)
-      message.success('停止录制')
-      fetchTasks()
-    } catch (error) {
-      message.error('停止录制失败')
     }
   }
 
@@ -1130,67 +1252,6 @@ function AppContent() {
     }));
   };
 
-  const getStatusTag = (status) => {
-    switch (status) {
-      case 'running':
-        return <Tag color="processing">录制中</Tag>
-      case 'completed':
-        return <Tag color="success">已完成</Tag>
-      case 'paused':
-        return <Tag color="warning">已暂停</Tag>
-      case 'failed':
-        return <Tag color="error">录制失败</Tag>
-      default:
-        return <Tag>{status}</Tag>
-    }
-  }
-
-  const renderTaskControls = (record) => (
-    <div className="operation-buttons">
-      {record.status === 'running' && (
-        <Button
-          type="primary"
-          danger
-          icon={<StopOutlined />}
-          onClick={() => handleStopRecording(record.id)}
-        >
-          停止
-        </Button>
-      )}
-      {(record.status === 'completed' || record.status === 'paused') && (
-        <Button
-          type="primary"
-          icon={<DownloadOutlined />}
-          onClick={() => handleDownload(record)}
-        >
-          下载
-        </Button>
-      )}
-      <Button
-        type="primary"
-        icon={<DesktopOutlined />}
-        onClick={() => openConsole(record.id)}
-      >
-        控制台
-      </Button>
-      <Button
-        type="default"
-        icon={<HistoryOutlined />}
-        onClick={() => viewHistory(record.id)}
-      >
-        历史
-      </Button>
-      <Button
-        type="primary"
-        danger
-        icon={<DeleteOutlined />}
-        onClick={() => deleteTask(record.id)}
-      >
-        删除
-      </Button>
-    </div>
-  );
-
   const columns = [
     {
       title: '任务ID',
@@ -1262,29 +1323,6 @@ function AppContent() {
     return `${value.toFixed(2)} ${units[unitIndex]}`;
   };
 
-  // 处理下载
-  const handleDownload = async (task) => {
-    try {
-      // 直接使用 window.open 打开下载链接
-      window.open(`${API_BASE_URL}/api/download/${task.id}`, '_blank');
-    } catch (error) {
-      message.error('下载失败: ' + error.message);
-    }
-  };
-
-  // 查看任务历史记录
-  const viewHistory = async (taskId) => {
-    try {
-      setSelectedTaskId(taskId);
-      const response = await axios.get(`/api/tasks/${taskId}/history`);
-      setTaskHistory(response.data);
-      setHistoryModalVisible(true);
-    } catch (error) {
-      console.error('获取任务历史失败:', error);
-      message.error('获取任务历史失败');
-    }
-  };
-
   // 渲染历史记录模态框
   const renderHistoryModal = () => (
     <Modal
@@ -1313,42 +1351,12 @@ function AppContent() {
     </Modal>
   );
 
-  // 删除任务
-  const deleteTask = async (taskId) => {
-    Modal.confirm({
-      title: '确认删除',
-      content: '确定要删除这个任务吗？此操作不可恢复。',
-      okText: '确定',
-      cancelText: '取消',
-      onOk: async () => {
-        try {
-          await axios.delete(`/api/tasks/${taskId}`);
-          message.success('任务已删除');
-          fetchTasks();
-        } catch (error) {
-          console.error('删除任务失败:', error);
-          message.error('删除任务失败');
-        }
-      }
-    });
-  };
-
-  // 获取任务列表
-  const fetchTasks = async () => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/api/tasks`)
-      setTasks(response.data)
-    } catch (error) {
-      message.error('获取任务列表失败')
-    }
-  }
-
   // 定期刷新任务列表
   useEffect(() => {
-    fetchTasks()
-    const interval = setInterval(fetchTasks, 5000)
-    return () => clearInterval(interval)
-  }, [])
+    fetchTasks();
+    const interval = setInterval(fetchTasks, 5000);
+    return () => clearInterval(interval);
+  }, [fetchTasks]);
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -1368,15 +1376,6 @@ function AppContent() {
           <VideoCameraOutlined style={{ marginRight: '8px' }} />
           <span>直播录制工具</span>
         </div>
-        <Button 
-          type="primary" 
-          ghost 
-          icon={<DesktopOutlined />}
-          onClick={() => navigate('/dashboard')}
-          style={{ color: '#fff', borderColor: '#fff' }}
-        >
-          仪表盘登录
-        </Button>
       </Header>
       <Content style={{ padding: '24px' }}>
         <Form
