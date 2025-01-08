@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
@@ -598,34 +599,60 @@ app.delete('/api/tasks/:taskId', async (req, res) => {
 // 获取文件下载链接
 app.get('/api/download/:taskId', (req, res) => {
   const { taskId } = req.params;
-  const task = activeTasks.get(taskId);
+  console.log(`[${new Date().toLocaleString()}] 开始下载任务: ${taskId}`);
   
-  if (!task || !task.outputFile) {
-    return res.status(404).json({ error: '文件未找到' });
+  try {
+    const task = activeTasks.get(taskId);
+    
+    if (!task || !task.outputFile) {
+      console.error(`[${new Date().toLocaleString()}] 任务未找到: ${taskId}`);
+      return res.status(404).json({ error: '文件未找到' });
+    }
+
+    // 使用绝对路径
+    const absolutePath = path.resolve(task.outputFile);
+    console.log(`[${new Date().toLocaleString()}] 文件路径: ${absolutePath}`);
+
+    // 获取文件名
+    const fileName = path.basename(absolutePath);
+    
+    // 检查文件是否存在
+    if (!fs.existsSync(absolutePath)) {
+      console.error(`[${new Date().toLocaleString()}] 文件不存在: ${absolutePath}`);
+      return res.status(404).json({ error: '文件不存在' });
+    }
+
+    // 获取文件大小
+    const fileSize = fs.statSync(absolutePath).size;
+    if (fileSize === 0) {
+      console.error(`[${new Date().toLocaleString()}] 文件大小为0: ${absolutePath}`);
+      return res.status(404).json({ error: '文件大小为0' });
+    }
+
+    console.log(`[${new Date().toLocaleString()}] 开始传输文件: ${fileName}, 大小: ${fileSize} bytes`);
+
+    // 设置响应头
+    res.setHeader('Content-Type', 'video/MP2T');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('Content-Length', fileSize);
+
+    // 创建文件读取流并传输给客户端
+    const fileStream = fs.createReadStream(absolutePath);
+    
+    fileStream.on('error', (error) => {
+      console.error(`[${new Date().toLocaleString()}] 文件传输错误:`, error);
+      if (!res.headersSent) {
+        res.status(500).json({ error: '文件传输失败' });
+      }
+    });
+
+    fileStream.pipe(res);
+  } catch (error) {
+    console.error(`[${new Date().toLocaleString()}] 下载处理错误:`, error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: '下载处理失败' });
+    }
   }
-
-  // 获取文件名
-  const fileName = path.basename(task.outputFile);
-  
-  // 检查文件是否存在
-  if (!fs.existsSync(task.outputFile)) {
-    return res.status(404).json({ error: '文件不存在' });
-  }
-
-  // 获取文件大小
-  const fileSize = fs.statSync(task.outputFile).size;
-  if (fileSize === 0) {
-    return res.status(404).json({ error: '文件大小为0' });
-  }
-
-  // 设置响应头
-  res.setHeader('Content-Type', 'video/MP2T');
-  res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
-  res.setHeader('Content-Length', fileSize);
-
-  // 创建文件读取流并传输给客户端
-  const fileStream = fs.createReadStream(task.outputFile);
-  fileStream.pipe(res);
 });
 
 app.listen(port, host, () => {
