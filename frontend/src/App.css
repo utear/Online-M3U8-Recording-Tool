@@ -190,6 +190,21 @@ body {
 .status-tag {
   min-width: 80px;
   text-align: center;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000;
+  will-change: transform;
+  transition: background-color 0.3s ease;
+}
+
+.ant-btn {
+  margin: 0 !important;
+  min-width: 90px;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000;
+  will-change: transform;
+  transition: all 0.3s ease;
 }
 
 .ant-btn-dangerous.ant-btn-primary {
@@ -204,10 +219,21 @@ body {
 }
 
 .output-cell {
-  max-width: 400px;
+  display: block;
   font-family: monospace;
   font-size: 13px;
   color: #666;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.url-cell {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
 }
 
 /* Switch 样式 */
@@ -271,11 +297,6 @@ body {
   justify-content: flex-end;
 }
 
-.ant-btn {
-  margin: 0 !important;
-  min-width: 90px;
-}
-
 .operation-column {
   min-width: 300px;
   text-align: right;
@@ -293,12 +314,14 @@ body {
   }
 }
 
-/* 表格操作列样式优化 */
+/* 操作按钮样式 */
 .operation-buttons {
   display: inline-flex;
   gap: 8px;
   flex-wrap: nowrap;
   align-items: center;
+  justify-content: flex-end;
+  min-height: 32px;
 }
 
 .operation-buttons .ant-btn {
@@ -311,51 +334,6 @@ body {
 
 .operation-buttons .ant-btn > .anticon + span {
   margin-left: 4px;
-}
-
-/* 表格列宽度控制 */
-.task-id-column {
-  width: 150px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.task-url-column {
-  min-width: 200px;
-  max-width: 400px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.task-status-column {
-  width: 100px;
-  text-align: center;
-}
-
-.task-time-column {
-  width: 150px;
-  white-space: nowrap;
-}
-
-.task-size-column {
-  width: 100px;
-  text-align: right;
-}
-
-.task-output-column {
-  min-width: 150px;
-  max-width: 300px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.operation-column {
-  width: 240px;
-  text-align: right;
-  padding-right: 16px !important;
 }
 
 /* 终端样式 */
@@ -397,4 +375,41 @@ body {
 
 .terminal-container::-webkit-scrollbar-thumb:hover {
   background: #888;
+}
+
+/* 表格列宽度控制 */
+.task-url-column {
+  max-width: 300px !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.task-output-column {
+  max-width: 400px !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.task-time-column {
+  max-width: 200px !important;
+  white-space: nowrap;
+}
+
+.task-size-column {
+  max-width: 100px !important;
+  text-align: right;
+}
+
+.operation-column {
+  max-width: 420px !important;
+  min-width: 420px !important;
+}
+
+/* 确保单元格内容不会撑开列宽 */
+.ant-table-cell {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
