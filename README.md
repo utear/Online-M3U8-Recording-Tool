@@ -15,6 +15,15 @@
 - 内置进程控制终端，支持实时交互
 - 完整的文件管理机制
 
+## 图片演示
+![a35a513a296a84d2ff8b32af0d1ab65](https://github.com/user-attachments/assets/4c798bec-fea5-46cb-9751-aac99c31604d)
+![e74c1adc9c41002f33d9456c005ab0e](https://github.com/user-attachments/assets/55a39c60-bbcb-49c5-884c-f56ffda7b019)
+![4068d4e163d5d58c081f7afb8342b75](https://github.com/user-attachments/assets/c62b01f1-2509-4116-bff8-29356a5831dd)
+![865646a05da808fe00656b86519b69a](https://github.com/user-attachments/assets/98cadd08-39d2-4d20-98a4-7abdb16b2818)
+![8aac3bead51d3ccc4d3fb4058146583](https://github.com/user-attachments/assets/f0786543-bc7d-498f-8b4f-d8d66e3503e6)
+![070b83483d458e0d5457dcbb0d4e7c0](https://github.com/user-attachments/assets/9cf79bd4-87c6-45f2-8995-40776e5253dd)
+![3ce2af9b5093b88ed49f58ab62deb50](https://github.com/user-attachments/assets/e6b1586f-2646-49f6-b437-3f5d605eecba)
+
 ## 快速开始
 
 ### 安装
