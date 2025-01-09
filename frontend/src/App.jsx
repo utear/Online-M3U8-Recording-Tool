@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { Layout, Form, Input, Button, Card, Space, Select, Table, Tag, message, Collapse, Switch, InputNumber, Tooltip, Modal } from 'antd'
+import { Layout, Form, Input, Button, Card, Space, Select, Table, Tag, message, Collapse, Switch, InputNumber, Tooltip, Modal, DatePicker } from 'antd'
+import dayjs from 'dayjs'
 import {
   DesktopOutlined,
   FileOutlined,
@@ -86,21 +87,20 @@ const RECORDING_OPTIONS = {
       tooltip: '--save-name <save-name>',
     },
     {
-      name: 'thread-count',
-      label: '下载线程数',
-      type: 'select',
-      options: [1, 2, 4, 8, 16],
-      defaultValue: '4',
-      description: '设置下载线程数，建议4-8个线程',
-      tooltip: '--thread-count <number>',
-    },
-    {
       name: 'task-start-at',
       label: '定时开始',
-      type: 'input',
-      placeholder: '例如：20240101083000 表示2024年1月1日8点30分',
-      description: '设置任务开始时间，格式：年月日时分秒',
+      type: 'datetime',
+      placeholder: '选择开始时间',
+      description: '设置任务开始时间',
       tooltip: '--task-start-at <yyyyMMddHHmmss>',
+    },
+    {
+      name: 'live-record-limit',
+      label: '录制时长限制',
+      type: 'input',
+      placeholder: '格式：HH:mm:ss',
+      description: '录制直播时的录制时长限制',
+      tooltip: '--live-record-limit <HH:mm:ss>',
     },
     {
       name: 'check-segments-count',
@@ -110,6 +110,15 @@ const RECORDING_OPTIONS = {
       description: '检测实际下载的分片数量和预期数量是否匹配',
       tooltip: '--check-segments-count',
       valuePropName: 'checked',
+    },
+    {
+      name: 'thread-count',
+      label: '下载线程数',
+      type: 'select',
+      options: [1, 2, 4, 8, 16],
+      defaultValue: '4',
+      description: '设置下载线程数，建议4-8个线程',
+      tooltip: '--thread-count <number>',
     },
     {
       name: 'append-url-params',
@@ -208,14 +217,6 @@ const RECORDING_OPTIONS = {
     },
   ],
   live: [
-    {
-      name: 'live-record-limit',
-      label: '录制时长限制',
-      type: 'input',
-      placeholder: '格式：HH:mm:ss',
-      description: '录制直播时的录制时长限制',
-      tooltip: '--live-record-limit <HH:mm:ss>',
-    },
     {
       name: 'live-wait-time',
       label: '直播列表刷新间隔(秒)',
@@ -1176,6 +1177,20 @@ function AppContent() {
     });
   }, []);
 
+  const handleFormValuesChange = (changedValues, allValues) => {
+    const formattedValues = { ...allValues };
+    
+    // 处理日期时间转换
+    if (changedValues['task-start-at']) {
+      const dateObj = changedValues['task-start-at'];
+      if (dateObj && dayjs.isDayjs(dateObj)) {
+        formattedValues['task-start-at'] = dateObj.format('YYYYMMDDHHmmss');
+      }
+    }
+    
+    form.setFieldsValue(formattedValues);
+  };
+
   // 开始录制
   const handleStartRecording = async (values) => {
     try {
@@ -1186,7 +1201,12 @@ function AppContent() {
       Object.keys(RECORDING_OPTIONS).forEach(category => {
         RECORDING_OPTIONS[category].forEach(option => {
           if (values[option.name] !== undefined && values[option.name] !== '') {
-            options[option.name] = values[option.name]
+            if (option.type === 'datetime' && values[option.name]) {
+              // 确保日期时间值被正确格式化
+              options[option.name] = dayjs(values[option.name]).format('YYYYMMDDHHmmss');
+            } else {
+              options[option.name] = values[option.name]
+            }
           }
         })
       })
@@ -1223,6 +1243,20 @@ function AppContent() {
         return <InputNumber min={option.min} style={{ width: '100%' }} />;
       case 'switch':
         return <Switch defaultChecked={option.defaultValue} />;
+      case 'datetime':
+        return <DatePicker 
+          showTime 
+          format="YYYY-MM-DD HH:mm:ss"
+          placeholder={option.placeholder}
+          style={{ width: '100%' }}
+          value={form.getFieldValue(option.name) ? dayjs(form.getFieldValue(option.name), 'YYYYMMDDHHmmss') : null}
+          onChange={(date) => {
+            form.setFields([{
+              name: option.name,
+              value: date ? dayjs(date) : null
+            }]);
+          }}
+        />;
       default:
         return null;
     }
@@ -1252,7 +1286,52 @@ function AppContent() {
       ),
       children: (
         <div className="form-grid">
-          {RECORDING_OPTIONS[category.key].map(option => (
+          {RECORDING_OPTIONS[category.key].filter(option => option.type === 'input').map(option => (
+            <Form.Item
+              key={option.name}
+              name={option.name}
+              label={
+                <Tooltip title={
+                  <div>
+                    <div>{option.description}</div>
+                    <div style={{ marginTop: '8px', color: '#1890ff' }}>命令行参数: {option.tooltip}</div>
+                  </div>
+                }>
+                  <Space>
+                    {option.label}
+                    <QuestionCircleOutlined />
+                  </Space>
+                </Tooltip>
+              }
+              rules={[{ required: option.required, message: `请输入${option.label}` }]}
+            >
+              {renderFormItem(option)}
+            </Form.Item>
+          ))}
+          {RECORDING_OPTIONS[category.key].filter(option => option.type === 'switch').map(option => (
+            <Form.Item
+              key={option.name}
+              name={option.name}
+              valuePropName="checked"
+              label={
+                <Tooltip title={
+                  <div>
+                    <div>{option.description}</div>
+                    <div style={{ marginTop: '8px', color: '#1890ff' }}>命令行参数: {option.tooltip}</div>
+                  </div>
+                }>
+                  <Space>
+                    {option.label}
+                    <QuestionCircleOutlined />
+                  </Space>
+                </Tooltip>
+              }
+              rules={[{ required: option.required, message: `请输入${option.label}` }]}
+            >
+              {renderFormItem(option)}
+            </Form.Item>
+          ))}
+          {RECORDING_OPTIONS[category.key].filter(option => option.type !== 'input' && option.type !== 'switch').map(option => (
             <Form.Item
               key={option.name}
               name={option.name}
@@ -1431,6 +1510,7 @@ function AppContent() {
           form={form}
           onFinish={handleStartRecording}
           layout="vertical"
+          onValuesChange={handleFormValuesChange}
         >
           <Form.Item
             name="url"
