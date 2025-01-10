@@ -428,27 +428,51 @@ app.post('/api/start-recording', async (req, res) => {
       console.log(`任务 ${taskId} 结束，退出码:`, code);
       const task = activeTasks.get(taskId);
       if (task) {
-        const fileSize = getFileSize(task.outputFile);
         console.log(`任务 ${taskId} 输出文件路径:`, task.outputFile);
-        console.log(`任务 ${taskId} 输出文件大小:`, fileSize);
         console.log(`任务 ${taskId} 保存目录:`, task.saveDir);
         
         // 检查文件是否存在
-        console.log(`任务 ${taskId} 文件是否存在:`, fs.existsSync(task.outputFile));
+        const checkFileExists = (filePath) => {
+          // 获取文件名（不含扩展名）和目录
+          const dir = path.dirname(filePath);
+          const baseNameWithoutExt = path.basename(filePath, path.extname(filePath));
+          
+          // 读取目录下所有文件
+          const files = fs.readdirSync(dir);
+          
+          // 检查是否存在相同文件名（不考虑扩展名）的文件
+          return files.some(file => {
+            const currentBaseNameWithoutExt = path.basename(file, path.extname(file));
+            return currentBaseNameWithoutExt === baseNameWithoutExt;
+          });
+        };
+        
+        const fileExists = checkFileExists(task.outputFile);
+        console.log(`任务 ${taskId} 文件是否存在:`, fileExists);
+        
         // 列出保存目录中的文件
         console.log(`任务 ${taskId} 保存目录内容:`, fs.readdirSync(task.saveDir));
         
         let status = 'failed';
-        if (fileSize > 0) {
+        if (fileExists) {
           status = task.status === 'stopped' ? 'paused' : 'completed';
         }
         task.status = status;
-        task.fileSize = fileSize;
         
         // 更新数据库
         await updateTaskStatus(taskId, status);
-        if (task.outputFile && fs.existsSync(task.outputFile)) {
-          await updateTaskOutput(taskId, task.outputFile, fileSize);
+        if (fileExists) {
+          // 获取实际文件路径和大小
+          const dir = path.dirname(task.outputFile);
+          const baseNameWithoutExt = path.basename(task.outputFile, path.extname(task.outputFile));
+          const files = fs.readdirSync(dir);
+          const actualFile = files.find(file => path.basename(file, path.extname(file)) === baseNameWithoutExt);
+          if (actualFile) {
+            const actualFilePath = path.join(dir, actualFile);
+            const fileSize = fs.statSync(actualFilePath).size;
+            task.fileSize = fileSize;
+            await updateTaskOutput(taskId, actualFilePath, fileSize);
+          }
         }
         
         // 将消息添加到缓冲区
@@ -459,7 +483,7 @@ app.post('/api/start-recording', async (req, res) => {
           type: 'status',
           taskId,
           status,
-          fileSize,
+          fileSize: task.fileSize,
           outputFile: task.outputFile
         });
       }
@@ -636,31 +660,43 @@ app.get('/api/download/:taskId', (req, res) => {
     const absolutePath = path.resolve(task.outputFile);
     console.log(`[${new Date().toLocaleString()}] 文件路径: ${absolutePath}`);
 
-    // 获取文件名
-    const fileName = path.basename(absolutePath);
-    
-    // 检查文件是否存在
-    if (!fs.existsSync(absolutePath)) {
+    // 获取实际文件路径
+    const getActualFilePath = (filePath) => {
+      const dir = path.dirname(filePath);
+      const baseNameWithoutExt = path.basename(filePath, path.extname(filePath));
+      
+      // 读取目录下所有文件
+      const files = fs.readdirSync(dir);
+      
+      // 查找匹配的文件
+      const actualFile = files.find(file => 
+        path.basename(file, path.extname(file)) === baseNameWithoutExt
+      );
+      
+      return actualFile ? path.join(dir, actualFile) : null;
+    };
+
+    const actualPath = getActualFilePath(absolutePath);
+    if (!actualPath) {
       console.error(`[${new Date().toLocaleString()}] 文件不存在: ${absolutePath}`);
       return res.status(404).json({ error: '文件不存在' });
     }
 
-    // 获取文件大小
-    const fileSize = fs.statSync(absolutePath).size;
+    // 获取文件名和大小
+    const fileName = path.basename(actualPath);
+    const fileSize = fs.statSync(actualPath).size;
     if (fileSize === 0) {
-      console.error(`[${new Date().toLocaleString()}] 文件大小为0: ${absolutePath}`);
+      console.error(`[${new Date().toLocaleString()}] 文件大小为0: ${actualPath}`);
       return res.status(404).json({ error: '文件大小为0' });
     }
 
-    console.log(`[${new Date().toLocaleString()}] 开始传输文件: ${fileName}, 大小: ${fileSize} bytes`);
-
     // 设置响应头
-    res.setHeader('Content-Type', 'video/MP2T');
-    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    res.setHeader('Content-Disposition', `attachment; filename=${encodeURIComponent(fileName)}`);
+    res.setHeader('Content-Type', 'application/octet-stream');
     res.setHeader('Content-Length', fileSize);
 
-    // 创建文件读取流并传输给客户端
-    const fileStream = fs.createReadStream(absolutePath);
+    // 创建文件读取流并发送
+    const fileStream = fs.createReadStream(actualPath);
     
     fileStream.on('error', (error) => {
       console.error(`[${new Date().toLocaleString()}] 文件传输错误:`, error);
