@@ -120,7 +120,7 @@ npm run dev
 │   └── server.js    # 后端主程序
 ├── frontend/        # 前端代码
 └── Sever.exe       # N_m3u8DL-RE 程序
-
+```
 ## 更新日志
 
 ### 2025-01-11
