@@ -729,14 +729,19 @@ function AppContent() {
 
   // 使用 useMemo 缓存状态标签
   const getStatusTag = useCallback((status) => {
-    const statusConfig = {
-      running: { color: 'processing', text: '录制中' },
-      completed: { color: 'success', text: '已完成' },
-      paused: { color: 'warning', text: '已暂停' },
-      failed: { color: 'error', text: '录制失败' }
-    };
-    const config = statusConfig[status] || { color: 'default', text: status };
-    return <Tag color={config.color}>{config.text}</Tag>;
+    // 对于 failed、completed、paused 状态使用特定的显示
+    if (status === 'failed') {
+      return <Tag color="error">录制失败</Tag>;
+    }
+    if (status === 'completed') {
+      return <Tag color="success">已完成</Tag>;
+    }
+    if (status === 'paused') {
+      return <Tag color="warning">已暂停</Tag>;
+    }
+    
+    // 其他所有状态都显示为"录制中"
+    return <Tag color="processing">录制中</Tag>;
   }, []);
 
   // 停止录制
@@ -1389,11 +1394,12 @@ function AppContent() {
     },
     {
       title: '开始时间',
-      dataIndex: 'startTime',
+      dataIndex: 'createdAt',
       key: 'startTime',
       width: '15%',
       className: 'task-time-column',
-      ellipsis: true
+      ellipsis: true,
+      render: (createdAt) => dayjs(createdAt).format('YYYY-MM-DD HH:mm:ss')
     },
     {
       title: '文件大小',
