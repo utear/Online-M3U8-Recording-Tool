@@ -16,7 +16,7 @@
 - 可配置下载参数（线程数、保存目录等）
 - 内置进程控制终端，支持实时交互（可能存在bug）
 - 完整的文件管理机制
-- iptv直播地址默认采用：https://github.com/vbskycn/iptv/blob/master/tv/iptv4.m3u（在此感谢作者），如需修改请前往/fontend/src/page/IPTVPage.tsx的38行地址，注意格式要是标准的M3U格式内容
+- iptv直播地址默认采用：https://github.com/vbskycn/iptv/blob/master/tv/iptv4.m3u  #（在此感谢作者），如需修改请前往/fontend/src/page/IPTVPage.tsx的38行地址，注意格式要是标准的M3U格式内容
 
 ## 已知问题
 
