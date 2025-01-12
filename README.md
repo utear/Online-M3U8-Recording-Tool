@@ -95,7 +95,7 @@ cd frontend
 npm run dev
 ```
 
-3. 访问：`http://localhost:5173`
+3. 访问：`http://localhost:你设定的前端端口号`
 
 ## 使用指南
 
