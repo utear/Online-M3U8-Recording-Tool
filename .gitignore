@@ -2,6 +2,9 @@
 node_modules/
 /frontend/node_modules/
 /backend/node_modules/
+package-lock.json
+/frontend/package-lock.json
+/backend/package-lock.json
 
 # Production build
 /frontend/build/

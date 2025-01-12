@@ -1102,43 +1102,42 @@ function AppContent() {
             case 'progress':
               // 使用节流函数更新状态
               throttledUpdateTasks(data.taskId, data.status);
-              
-              // 更新终端输出，但确保不重复添加相同的输出
-              setTerminals(prev => {
-                const newTerminals = new Map(prev);
-                const terminal = newTerminals.get(data.taskId);
-                if (terminal) {
-                  const newOutput = formatTerminalOutput(data.output);
-                  if (newOutput) {
-                    // 检查最后一行是否与新输出相同，避免重复
-                    const lastLine = terminal.output.split('\n').pop() || '';
-                    if (lastLine.trim() !== newOutput.trim()) {
-                      terminal.output = terminal.output + (terminal.output.endsWith('\n') ? '' : '\n') + newOutput;
-                      newTerminals.set(data.taskId, { ...terminal });
-                      terminalsRef.current = newTerminals;
-                    }
-                  }
-                }
-                return newTerminals;
-              });
-              break;
-              
+　　 　 　 　 // 更新终端输出，但确保不重复添加相同的输出
+　　 　 　 　 setTerminals(prev => {
+　　　　 　 　 const newTerminals = new Map(prev);
+　　　　 　 　 const terminal = newTerminals.get(data.taskId);
+　　　　 　 　 if (terminal) {
+　　 　 　 　 　 const newOutput = formatTerminalOutput(data.output);
+　　 　 　 　 　 if (newOutput) {
+　　 　 　 　 　 　 // 检查最后一行是否与新输出相同，避免重复
+　　 　 　 　 　 　 const lastLine = terminal.output.split('\n').pop() || '';
+　　 　 　 　 　 　 if (lastLine.trim() !== newOutput.trim()) {
+　　 　 　 　 　 　 　 terminal.output = terminal.output + (terminal.output.endsWith('\n') ? '' : '\n') + newOutput;
+　　 　 　 　 　 　 　 newTerminals.set(data.taskId, { ...terminal });
+　　 　 　 　 　 　 　 terminalsRef.current = newTerminals;
+　　 　 　 　 　 　 }
+　　 　 　 　 　 }
+　　　　 　 　 }
+　　　　 　 　 return newTerminals;
+　　 　 　 　 });
+　　 　 　 　 break;
+　　 　 　 　
             case 'status':
-              setTasks(prevTasks => {
-                return prevTasks.map(task => {
-                  if (task.id === data.taskId) {
-                    return {
-                      ...task,
-                      status: data.status
-                    };
-                  }
-                  return task;
-                });
-              });
-              break;
-          }
+　　 　 　 　 setTasks(prevTasks => {
+　　　　 　 　 return prevTasks.map(task => {
+　　 　 　 　 　 if (task.id === data.taskId) {
+　　 　 　 　 　 　 return {
+　　 　 　 　 　 　 　 ...task,
+　　 　 　 　 　 　 　 status: data.status
+　　 　 　 　 　 　 };
+　　 　 　 　 　 }
+　　 　 　 　 　 return task;
+　　　　 　 　 });
+　　 　 　 　 });
+　　 　 　 　 break;
+ 　 　 　 }
         } catch (error) {
-          console.error('处理WebSocket消息时出错:', error);
+ 　 　 　 console.error('处理WebSocket消息时出错:', error);
         }
       };
 
@@ -1148,11 +1147,11 @@ function AppContent() {
 
       ws.onclose = () => {
         if (wsRef.current === ws) {
-          console.log('WebSocket客户端已断开');
-          wsRef.current = null;
-          // 标记所有终端为未订阅
-          subscribedTasksRef.current.clear();
-          reconnectTimeoutRef.current = setTimeout(connectWebSocket, 5000);
+ 　 　 　 console.log('WebSocket客户端已断开');
+ 　 　 　 wsRef.current = null;
+ 　 　 　 // 标记所有终端为未订阅
+ 　 　 　 subscribedTasksRef.current.clear();
+ 　 　 　 reconnectTimeoutRef.current = setTimeout(connectWebSocket, 5000);
         }
       };
     };
@@ -1504,16 +1503,6 @@ function AppContent() {
     },
     {
       key: '2',
-      icon: <FileOutlined />,
-      label: '下载管理',
-    },
-    {
-      key: '3',
-      icon: <HistoryOutlined />,
-      label: '录制记录',
-    },
-    {
-      key: '4',
       icon: <PlaySquareOutlined />,
       label: 'IPTV直播',
     },
@@ -1558,18 +1547,6 @@ function AppContent() {
             },
             {
               key: '2',
-              icon: <FileOutlined />,
-              label: '下载管理',
-              style: { color: '#fff' }
-            },
-            {
-              key: '3',
-              icon: <HistoryOutlined />,
-              label: '录制记录',
-              style: { color: '#fff' }
-            },
-            {
-              key: '4',
               icon: <PlaySquareOutlined />,
               label: 'IPTV直播',
               style: { color: '#fff' }
@@ -1626,7 +1603,7 @@ function AppContent() {
                 </Form.Item>
               </div>
             )}
-            {selectedKey === '4' && (
+            {selectedKey === '2' && (
               <Form.Item
                 name="url"
                 style={{ display: 'none' }}
@@ -1635,7 +1612,7 @@ function AppContent() {
               </Form.Item>
             )}
           </Form>
-          {selectedKey === '4' && <IPTVPage form={form} />}
+          {selectedKey === '2' && <IPTVPage form={form} />}
           {selectedKey === '1' && (
             <>
               <Card title="任务列表" style={{ marginTop: '24px' }}>
@@ -1649,26 +1626,6 @@ function AppContent() {
               {renderTerminals()}
               {renderHistoryModal()}
             </>
-          )}
-          {selectedKey === '2' && (
-            <Card title="下载管理" style={{ marginTop: '24px' }}>
-              <Table
-                dataSource={tasks}
-                columns={columns}
-                rowKey="id"
-                pagination={false}
-              />
-            </Card>
-          )}
-          {selectedKey === '3' && (
-            <Card title="录制记录" style={{ marginTop: '24px' }}>
-              <Table
-                dataSource={tasks}
-                columns={columns}
-                rowKey="id"
-                pagination={false}
-              />
-            </Card>
           )}
         </div>
       </Content>
