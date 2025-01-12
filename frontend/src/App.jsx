@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { Layout, Form, Input, Button, Card, Space, Select, Table, Tag, message, Collapse, Switch, InputNumber, Tooltip, Modal, DatePicker } from 'antd'
+import { Layout, Form, Input, Button, Card, Space, Select, Table, Tag, message, Collapse, Switch, InputNumber, Tooltip, Modal, DatePicker, Menu } from 'antd'
 import dayjs from 'dayjs'
 import {
   DesktopOutlined,
@@ -15,12 +15,14 @@ import {
   PauseCircleOutlined,
   VideoCameraOutlined,
   SendOutlined,
+  PlaySquareOutlined,
 } from '@ant-design/icons'
 import axios from 'axios'
 import './App.css'
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import IPTVPage from './pages/IPTVPage';
 
-const { Header, Content } = Layout
+const { Header, Content, Sider } = Layout
 const { Option } = Select
 const { Panel } = Collapse
 
@@ -1492,80 +1494,183 @@ function AppContent() {
     return () => clearInterval(interval);
   }, [fetchTasks]);
 
+  const [selectedKey, setSelectedKey] = useState('1');
+  const [collapsed, setCollapsed] = useState(false);
+  const items = [
+    {
+      key: '1',
+      icon: <DesktopOutlined />,
+      label: '录制',
+    },
+    {
+      key: '2',
+      icon: <FileOutlined />,
+      label: '下载管理',
+    },
+    {
+      key: '3',
+      icon: <HistoryOutlined />,
+      label: '录制记录',
+    },
+    {
+      key: '4',
+      icon: <PlaySquareOutlined />,
+      label: 'IPTV直播',
+    },
+  ];
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Header style={{ 
-        background: '#f5222d', 
         padding: '0 16px', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'space-between' 
+        background: '#f5222d',
+        display: 'flex',
+        alignItems: 'center',
+        height: '64px'
       }}>
-        <div style={{ 
-          color: '#fff', 
-          fontSize: '20px', 
-          display: 'flex', 
-          alignItems: 'center' 
+        <div className="logo" style={{ 
+          color: '#fff',
+          marginRight: '48px',
+          display: 'flex',
+          alignItems: 'center'
         }}>
-          <VideoCameraOutlined style={{ marginRight: '8px' }} />
-          <span>直播录制工具</span>
+          <VideoCameraOutlined style={{ fontSize: '24px', marginRight: '8px' }} />
+          <span style={{ fontSize: '18px' }}>直播录制工具</span>
         </div>
+        <Menu
+          theme="dark"
+          defaultSelectedKeys={['1']}
+          selectedKeys={[selectedKey]}
+          mode="horizontal"
+          onClick={({ key }) => setSelectedKey(key)}
+          style={{ 
+            background: 'transparent',
+            flex: 1,
+            borderBottom: 'none',
+            minWidth: 'auto'
+          }}
+          items={[
+            {
+              key: '1',
+              icon: <DesktopOutlined />,
+              label: '录制',
+              style: { color: '#fff' }
+            },
+            {
+              key: '2',
+              icon: <FileOutlined />,
+              label: '下载管理',
+              style: { color: '#fff' }
+            },
+            {
+              key: '3',
+              icon: <HistoryOutlined />,
+              label: '录制记录',
+              style: { color: '#fff' }
+            },
+            {
+              key: '4',
+              icon: <PlaySquareOutlined />,
+              label: 'IPTV直播',
+              style: { color: '#fff' }
+            },
+          ]}
+        />
       </Header>
-      <Content style={{ padding: '24px' }}>
-        <Form
-          form={form}
-          onFinish={handleStartRecording}
-          layout="vertical"
-          onValuesChange={handleFormValuesChange}
-        >
-          <Form.Item
-            name="url"
-            label={
-              <Tooltip title="支持m3u/m3u8/视频流地址">
-                <Space>
-                  视频流地址
-                  <QuestionCircleOutlined />
-                </Space>
-              </Tooltip>
-            }
-            rules={[{ required: true, message: '请输入视频流地址' }]}
-            className="url-input"
+      <Content style={{ margin: '16px' }}>
+        <div style={{ padding: 24, minHeight: 360, background: '#fff', borderRadius: '8px' }}>
+          <Form
+            form={form}
+            onFinish={handleStartRecording}
+            layout="vertical"
+            onValuesChange={handleFormValuesChange}
           >
-            <Input.TextArea
-              placeholder="请输入视频流地址"
-              autoSize={{ minRows: 2, maxRows: 4 }}
-            />
-          </Form.Item>
+            {selectedKey === '1' && (
+              <div>
+                <Form.Item
+                  name="url"
+                  label={
+                    <Tooltip title="支持m3u/m3u8/视频流地址">
+                      <Space>
+                        视频流地址
+                        <QuestionCircleOutlined />
+                      </Space>
+                    </Tooltip>
+                  }
+                  rules={[{ required: true, message: '请输入视频流地址' }]}
+                  className="url-input"
+                >
+                  <Input.TextArea
+                    placeholder="请输入视频流地址"
+                    autoSize={{ minRows: 2, maxRows: 4 }}
+                  />
+                </Form.Item>
 
-          <Collapse
-            ghost
-            className="settings-collapse"
-            defaultActiveKey={['basic']}
-            items={getCollapseItems()}
-          />
+                <Collapse
+                  ghost
+                  className="settings-collapse"
+                  defaultActiveKey={['basic']}
+                  items={getCollapseItems()}
+                />
 
-          <Form.Item className="submit-button">
-            <Button
-              type="primary"
-              htmlType="submit"
-              loading={loading}
-              icon={<PlayCircleOutlined />}
-              size="large"
-            >
-              开始录制
-            </Button>
-          </Form.Item>
-        </Form>
-        <Card title="任务列表" style={{ marginTop: '24px' }}>
-          <Table
-            dataSource={tasks}
-            columns={columns}
-            rowKey="id"
-            pagination={false}
-          />
-        </Card>
-        {renderTerminals()}
-        {renderHistoryModal()}
+                <Form.Item className="submit-button">
+                  <Button
+                    type="primary"
+                    htmlType="submit"
+                    loading={loading}
+                    icon={<PlayCircleOutlined />}
+                    size="large"
+                  >
+                    开始录制
+                  </Button>
+                </Form.Item>
+              </div>
+            )}
+            {selectedKey === '4' && (
+              <Form.Item
+                name="url"
+                style={{ display: 'none' }}
+              >
+                <Input />
+              </Form.Item>
+            )}
+          </Form>
+          {selectedKey === '4' && <IPTVPage form={form} />}
+          {selectedKey === '1' && (
+            <>
+              <Card title="任务列表" style={{ marginTop: '24px' }}>
+                <Table
+                  dataSource={tasks}
+                  columns={columns}
+                  rowKey="id"
+                  pagination={false}
+                />
+              </Card>
+              {renderTerminals()}
+              {renderHistoryModal()}
+            </>
+          )}
+          {selectedKey === '2' && (
+            <Card title="下载管理" style={{ marginTop: '24px' }}>
+              <Table
+                dataSource={tasks}
+                columns={columns}
+                rowKey="id"
+                pagination={false}
+              />
+            </Card>
+          )}
+          {selectedKey === '3' && (
+            <Card title="录制记录" style={{ marginTop: '24px' }}>
+              <Table
+                dataSource={tasks}
+                columns={columns}
+                rowKey="id"
+                pagination={false}
+              />
+            </Card>
+          )}
+        </div>
       </Content>
     </Layout>
   );

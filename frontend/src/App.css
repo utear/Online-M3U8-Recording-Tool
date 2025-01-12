@@ -413,3 +413,28 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* 菜单样式 */
+.ant-menu-dark.ant-menu-horizontal {
+  border-bottom: none;
+}
+
+.ant-menu-dark.ant-menu-horizontal > .ant-menu-item:hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.ant-menu-dark.ant-menu-horizontal > .ant-menu-item-selected {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.ant-menu-dark .ant-menu-item {
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+.ant-menu-dark .ant-menu-item:hover {
+  color: #fff !important;
+}
+
+.ant-menu-dark .ant-menu-item-selected {
+  color: #fff !important;
+}
