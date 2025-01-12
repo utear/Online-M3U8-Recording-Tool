@@ -31,10 +31,10 @@
 ![image](https://github.com/user-attachments/assets/a629356c-7a28-43c4-a00e-37e466eed950)
 ![image](https://github.com/user-attachments/assets/377f3941-fd94-4f3a-ab57-c609ccf03958)
 ![image](https://github.com/user-attachments/assets/1508b9f2-96c4-4095-9a1b-70b26dc76dac)
-![image](https://github.com/user-attachments/assets/ab5c9fe9-9317-41c8-bf02-1036cd36540f)
 ![image](https://github.com/user-attachments/assets/2b3d35df-bb2e-4305-a617-561c58b76c92)
 ![image](https://github.com/user-attachments/assets/d2ae4876-8b9e-4374-8cc9-52290e65b432)
 ![image](https://github.com/user-attachments/assets/ee183707-6057-408b-ab8f-671fe79b3908)
+![image](https://github.com/user-attachments/assets/ab5c9fe9-9317-41c8-bf02-1036cd36540f)
 
 ## 快速开始
 
