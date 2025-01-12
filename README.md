@@ -16,6 +16,7 @@
 - 可配置下载参数（线程数、保存目录等）
 - 内置进程控制终端，支持实时交互（可能存在bug）
 - 完整的文件管理机制
+- iptv直播地址默认采用：https://github.com/vbskycn/iptv/blob/master/tv/iptv4.m3u（在此感谢作者），如需修改请前往/fontend/src/page/IPTVPage.tsx的38行地址，注意格式要是标准的M3U格式内容
 
 ## 已知问题
 
@@ -26,13 +27,14 @@
  - 本项目作者并不会编程，是通过windsurf+claude并用自然语言交流完成的本项目开发，如在部署过程中有问题或使用过程中存在问题，请自行分析日志解决，日志部分可在/logs目录下查看（仅显示录制过程日志），开发这个项目的初衷也是为了满足作者自身需求。
 
 ## 图片演示
-![a35a513a296a84d2ff8b32af0d1ab65](https://github.com/user-attachments/assets/4c798bec-fea5-46cb-9751-aac99c31604d)
-![e74c1adc9c41002f33d9456c005ab0e](https://github.com/user-attachments/assets/55a39c60-bbcb-49c5-884c-f56ffda7b019)
-![4068d4e163d5d58c081f7afb8342b75](https://github.com/user-attachments/assets/c62b01f1-2509-4116-bff8-29356a5831dd)
-![865646a05da808fe00656b86519b69a](https://github.com/user-attachments/assets/98cadd08-39d2-4d20-98a4-7abdb16b2818)
-![8aac3bead51d3ccc4d3fb4058146583](https://github.com/user-attachments/assets/f0786543-bc7d-498f-8b4f-d8d66e3503e6)
-![070b83483d458e0d5457dcbb0d4e7c0](https://github.com/user-attachments/assets/9cf79bd4-87c6-45f2-8995-40776e5253dd)
-![3ce2af9b5093b88ed49f58ab62deb50](https://github.com/user-attachments/assets/e6b1586f-2646-49f6-b437-3f5d605eecba)
+![image](https://github.com/user-attachments/assets/e131c55d-2611-4061-bdd3-bae8d147941c)
+![image](https://github.com/user-attachments/assets/a629356c-7a28-43c4-a00e-37e466eed950)
+![image](https://github.com/user-attachments/assets/377f3941-fd94-4f3a-ab57-c609ccf03958)
+![image](https://github.com/user-attachments/assets/1508b9f2-96c4-4095-9a1b-70b26dc76dac)
+![image](https://github.com/user-attachments/assets/ab5c9fe9-9317-41c8-bf02-1036cd36540f)
+![image](https://github.com/user-attachments/assets/2b3d35df-bb2e-4305-a617-561c58b76c92)
+![image](https://github.com/user-attachments/assets/d2ae4876-8b9e-4374-8cc9-52290e65b432)
+![image](https://github.com/user-attachments/assets/ee183707-6057-408b-ab8f-671fe79b3908)
 
 ## 快速开始
 
