@@ -91,7 +91,9 @@ const IPTVPage = ({ form }) => {
   };
 
   const onScroll = (e) => {
-    if (e.currentTarget.scrollHeight - e.currentTarget.scrollTop === CONTAINER_HEIGHT) {
+    const { scrollHeight, scrollTop, clientHeight } = e.currentTarget;
+    // 当距离底部小于 50px 时触发加载
+    if (scrollHeight - scrollTop - clientHeight < 50) {
       setPage(prev => prev + 1);
     }
   };
