@@ -18,6 +18,8 @@ const {
   addTaskHistory, 
   getTaskHistory 
 } = require('./models/database');
+const iptvService = require('./services/iptvService');
+const iptvRoutes = require('./routes/iptvRoutes');
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -31,6 +33,12 @@ const processEnv = process.env;
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+
+// 初始化IPTV服务
+iptvService.init().catch(console.error);
+
+// 路由配置
+app.use('/api/iptv', iptvRoutes);
 
 // 静态文件服务配置
 app.use('/downloads', express.static(path.join(__dirname, 'downloads')));

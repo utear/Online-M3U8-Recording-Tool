@@ -16,7 +16,11 @@
 - 可配置下载参数（线程数、保存目录等）
 - 内置进程控制终端，支持实时交互（可能存在bug）
 - 完整的文件管理机制
-- iptv直播地址默认采用：https://github.com/vbskycn/iptv/blob/master/tv/iptv4.m3u  #（在此感谢作者），如需修改请前往/fontend/src/page/IPTVPage.tsx的38行地址，注意格式要是标准的M3U格式内容
+- IPTV直播列表自动更新机制：
+  - 服务器端每4小时自动更新一次IPTV列表
+  - 本地缓存支持，减少网络请求
+  - 支持HTTP代理配置，解决GitHub访问问题
+  - 默认IPTV源：https://github.com/vbskycn/iptv/blob/master/tv/iptv4.m3u
 
 ## 已知问题
 
@@ -74,12 +78,24 @@ HOST=0.0.0.0  # 使用 0.0.0.0 允许外部访问
 VITE_HOST=0.0.0.0  # 允许外部访问
 VITE_PORT=3005     # 前端服务端口
 
-# API 接口配置
-VITE_API_BASE_URL=http://localhost:3001
-VITE_WS_URL=ws://localhost:3002
+# API 接口配置（根据实际部署环境修改）
+VITE_API_BASE_URL=http://your-server-ip:3001  # 替换为实际的服务器地址
+VITE_WS_URL=ws://your-server-ip:3002          # 替换为实际的服务器地址
 ```
 
-注意：开发环境可使用 localhost，生产环境请替换为实际的服务器地址。
+3. HTTP代理配置（如果需要）:
+在 `backend/services/iptvService.js` 中配置代理设置：
+```javascript
+const PROXY_CONFIG = {
+    host: '127.0.0.1',  // 代理服务器地址
+    port: 7890          // 代理服务器端口
+};
+```
+
+注意：
+- 开发环境可使用 localhost
+- 生产环境请替换为实际的服务器IP或域名
+- 如果服务器无法直接访问GitHub，请配置HTTP代理
 
 ### 启动
 

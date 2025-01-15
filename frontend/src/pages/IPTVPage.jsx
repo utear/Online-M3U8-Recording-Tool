@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Input, List, Button, Space, message, Select, Spin } from 'antd';
 import { SearchOutlined } from '@ant-design/icons';
 import VirtualList from 'rc-virtual-list';
+import axios from 'axios';
 
 const { Option } = Select;
 const PAGE_SIZE = 50;
@@ -35,37 +36,13 @@ const IPTVPage = ({ form }) => {
 
   useEffect(() => {
     setLoading(true);
-    fetch('https://raw.githubusercontent.com/vbskycn/iptv/refs/heads/master/tv/iptv4.m3u')
-      .then(response => response.text())
-      .then(data => {
-        const lines = data.split('\n');
-        const parsedChannels = [];
-        
-        for (let i = 0; i < lines.length - 1; i++) {
-          if (lines[i].startsWith('#EXTINF')) {
-            const info = lines[i];
-            const url = lines[i + 1];
-            
-            const nameMatch = info.match(/tvg-name="([^"]+)"/);
-            const groupMatch = info.match(/group-title="([^"]+)"/);
-            const titleMatch = info.match(/,\s*(.+)$/);
-
-            if (nameMatch && url) {
-              parsedChannels.push({
-                name: nameMatch[1],
-                group: groupMatch ? groupMatch[1] : '未分组',
-                title: titleMatch ? titleMatch[1] : nameMatch[1],
-                url: url.trim()
-              });
-            }
-          }
-        }
-        
-        setChannels(parsedChannels);
+    axios.get('/api/iptv/channels')
+      .then(response => {
+        setChannels(response.data);
         setLoading(false);
       })
       .catch(error => {
-        console.error('Error fetching IPTV list:', error);
+        console.error('Error fetching channels:', error);
         message.error('加载频道列表失败');
         setLoading(false);
       });
