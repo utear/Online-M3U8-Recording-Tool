@@ -92,19 +92,46 @@ const PROXY_CONFIG = {
 
 ### 启动
 
-1. 启动后端：
+1. 启动后端服务：
 ```bash
 cd backend
 node server.js
 ```
 
-2. 启动前端：
+2. 启动前端服务：
 ```bash
 cd frontend
 npm run dev
 ```
 
 3. 访问：`http://localhost:你设定的前端端口号`
+
+### 管理员账户设置
+
+1. 初始化管理员账户：
+```bash
+cd backend
+node scripts/init-admin.js
+```
+这将创建默认管理员账户：
+- 用户名：admin
+- 密码：admin123
+
+你可以通过修改 `backend/scripts/init-admin.js` 文件来自定义管理员账户：
+```javascript
+const adminUser = {
+    username: 'admin',  // 修改管理员用户名
+    password: 'admin123',  // 修改管理员密码
+    role: 'admin'  // 不要修改此项
+};
+```
+
+管理员账户具有以下特权：
+- 查看所有用户的任务记录
+- 管理用户权限（开发中）
+- 系统设置管理（开发中）
+
+注意：请在首次使用时立即修改默认密码，以确保系统安全。
 
 ## 使用指南
 
