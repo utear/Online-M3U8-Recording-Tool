@@ -17,49 +17,78 @@ const db = new sqlite3.Database(dbPath, (err) => {
 // 初始化数据库表
 function initDatabase() {
     db.serialize(() => {
+        // 创建用户表
+        db.run(`
+            CREATE TABLE IF NOT EXISTS users (
+                username TEXT PRIMARY KEY,
+                password TEXT NOT NULL
+            )
+        `);
+
         // 创建任务表
-        db.run(`CREATE TABLE IF NOT EXISTS tasks (
-            id TEXT PRIMARY KEY,
-            url TEXT NOT NULL,
-            status TEXT NOT NULL,
-            lastOutput TEXT,
-            createdAt TEXT NOT NULL,
-            outputFile TEXT,
-            fileSize INTEGER DEFAULT 0,
-            options TEXT
-        )`);
+        db.run(`
+            CREATE TABLE IF NOT EXISTS tasks (
+                id TEXT PRIMARY KEY,
+                username TEXT NOT NULL,
+                url TEXT NOT NULL,
+                status TEXT NOT NULL,
+                lastOutput TEXT,
+                createdAt TEXT NOT NULL,
+                outputFile TEXT,
+                fileSize INTEGER DEFAULT 0,
+                options TEXT,
+                FOREIGN KEY(username) REFERENCES users(username)
+            )
+        `);
 
         // 创建任务历史记录表
-        db.run(`CREATE TABLE IF NOT EXISTS task_history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            taskId TEXT NOT NULL,
-            output TEXT NOT NULL,
-            timestamp TEXT NOT NULL,
-            FOREIGN KEY(taskId) REFERENCES tasks(id)
-        )`);
+        db.run(`
+            CREATE TABLE IF NOT EXISTS task_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                taskId TEXT NOT NULL,
+                output TEXT NOT NULL,
+                timestamp TEXT NOT NULL,
+                FOREIGN KEY(taskId) REFERENCES tasks(id)
+            )
+        `);
     });
 }
 
 // 添加新任务
 function addTask(task) {
     return new Promise((resolve, reject) => {
-        const { id, url, status, lastOutput, createdAt, outputFile, options } = task;
+        const { id, username, url, status, lastOutput, createdAt, outputFile, options } = task;
+        
+        if (!id || !username || !url) {
+            return reject(new Error('id, username 和 url 是必需的'));
+        }
+
+        console.log('添加任务:', task);
+        
         const stmt = db.prepare(`
-            INSERT INTO tasks (id, url, status, lastOutput, createdAt, outputFile, options)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO tasks (
+                id, username, url, status, lastOutput, 
+                createdAt, outputFile, options
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `);
         
         stmt.run(
             id,
+            username,
             url,
-            status,
+            status || 'pending',
             lastOutput || '',
-            createdAt,
+            createdAt || new Date().toISOString(),
             outputFile || '',
-            JSON.stringify(options),
+            options || '{}',
             function(err) {
-                if (err) reject(err);
-                else resolve(this.lastID);
+                if (err) {
+                    console.error('添加任务失败:', err);
+                    reject(err);
+                } else {
+                    console.log('任务添加成功, ID:', this.lastID);
+                    resolve(this.lastID);
+                }
             }
         );
         stmt.finalize();
@@ -111,17 +140,25 @@ function updateTaskOutput(taskId, outputFile, fileSize = 0) {
 }
 
 // 获取所有任务
-function getAllTasks() {
+async function getAllTasks(username, isAdmin = false) {
     return new Promise((resolve, reject) => {
-        db.all('SELECT * FROM tasks ORDER BY createdAt DESC', [], (err, rows) => {
-            if (err) reject(err);
-            else {
-                // 解析存储的JSON选项
-                const tasks = rows.map(row => ({
-                    ...row,
-                    options: row.options ? JSON.parse(row.options) : {}
-                }));
-                resolve(tasks);
+        let sql = 'SELECT * FROM tasks';
+        let params = [];
+
+        // 如果不是管理员，只获取自己的任务
+        if (!isAdmin) {
+            sql += ' WHERE username = ?';
+            params.push(username);
+        }
+
+        sql += ' ORDER BY createdAt DESC';
+        
+        db.all(sql, params, (err, rows) => {
+            if (err) {
+                console.error('获取任务列表失败:', err);
+                reject(err);
+            } else {
+                resolve(rows || []);
             }
         });
     });

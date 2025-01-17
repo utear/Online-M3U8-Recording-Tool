@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { Layout, Form, Input, Button, Card, Space, Select, Table, Tag, message, Collapse, Switch, InputNumber, Tooltip, Modal, DatePicker, Menu } from 'antd'
+import { Layout, Form, Input, Button, Card, Space, Select, Table, Tag, message, Collapse, Switch, InputNumber, Tooltip, Modal, DatePicker, Menu, Dropdown } from 'antd'
 import dayjs from 'dayjs'
 import {
   DesktopOutlined,
@@ -21,6 +21,7 @@ import axios from 'axios'
 import './App.css'
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import IPTVPage from './pages/IPTVPage';
+import LoginPage from './pages/LoginPage';
 
 const { Header, Content, Sider } = Layout
 const { Option } = Select
@@ -617,13 +618,15 @@ const inputStyle = {
 // 权限验证组件
 const PrivateRoute = ({ children }) => {
   const token = localStorage.getItem('token');
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
-  
-  if (!token || !['superadmin', 'admin'].includes(user.role)) {
-    return <Navigate to="/login" />;
-  }
-  
-  return children;
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!token) {
+      navigate('/login');
+    }
+  }, [token, navigate]);
+
+  return token ? children : null;
 };
 
 function AppContent() {
@@ -761,11 +764,83 @@ function AppContent() {
   // 下载文件
   const handleDownload = useCallback(async (record) => {
     try {
-      window.open(`${API_BASE_URL}/api/download/${record.id}`, '_blank');
+      message.loading({ content: '准备下载...', key: 'download' });
+      
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${API_BASE_URL}/api/download/${record.id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`下载失败: ${response.statusText}`);
+      }
+
+      // 获取文件大小
+      const contentLength = response.headers.get('content-length');
+      const total = parseInt(contentLength, 10);
+
+      // 创建响应流读取器
+      const reader = response.body.getReader();
+      let receivedLength = 0;
+
+      // 创建进度提示
+      const progress = document.createElement('div');
+      progress.style.position = 'fixed';
+      progress.style.top = '50%';
+      progress.style.left = '50%';
+      progress.style.transform = 'translate(-50%, -50%)';
+      progress.style.padding = '20px';
+      progress.style.background = 'rgba(0,0,0,0.7)';
+      progress.style.color = 'white';
+      progress.style.borderRadius = '8px';
+      progress.style.zIndex = '1000';
+      document.body.appendChild(progress);
+
+      // 读取数据流
+      const chunks = [];
+      while(true) {
+        const {done, value} = await reader.read();
+        
+        if (done) {
+          document.body.removeChild(progress);
+          break;
+        }
+        
+        chunks.push(value);
+        receivedLength += value.length;
+        
+        // 更新进度
+        const percentComplete = (receivedLength / total) * 100;
+        progress.textContent = `下载中... ${percentComplete.toFixed(1)}%`;
+      }
+
+      // 合并数据块
+      const blob = new Blob(chunks);
+      
+      // 获取文件名
+      const contentDisposition = response.headers.get('content-disposition');
+      const fileName = contentDisposition
+        ? decodeURIComponent(contentDisposition.split('filename=')[1].replace(/['"]/g, ''))
+        : `${record.id}.ts`;
+
+      // 创建下载
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      message.success({ content: '下载完成', key: 'download' });
     } catch (error) {
-      message.error('下载失败: ' + error.message);
+      console.error('下载失败:', error);
+      message.error({ content: '下载失败: ' + error.message, key: 'download' });
     }
-  }, []);
+  }, [API_BASE_URL]);
 
   // 删除任务
   const deleteTask = useCallback(async (taskId) => {
@@ -1508,6 +1583,27 @@ function AppContent() {
     },
   ];
 
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    delete axios.defaults.headers.common['Authorization'];
+    navigate('/login');
+  };
+
+  const userMenu = (
+    <Menu>
+      <Menu.Item key="username" disabled>
+        <UserOutlined /> {user.username}
+      </Menu.Item>
+      <Menu.Divider />
+      <Menu.Item key="logout" onClick={handleLogout}>
+        <LogoutOutlined /> 退出登录
+      </Menu.Item>
+    </Menu>
+  );
+
   return (
     <Layout style={{ minHeight: '100vh' }}>
       <Header style={{ 
@@ -1553,6 +1649,18 @@ function AppContent() {
             },
           ]}
         />
+        <Dropdown overlay={userMenu} placement="bottomRight">
+          <div style={{ 
+            cursor: 'pointer',
+            color: '#fff',
+            display: 'flex',
+            alignItems: 'center',
+            marginLeft: 'auto'
+          }}>
+            <UserOutlined style={{ marginRight: 8 }} />
+            <span>{user.username}</span>
+          </div>
+        </Dropdown>
       </Header>
       <Content style={{ margin: '16px' }}>
         <div style={{ padding: 24, minHeight: 360, background: '#fff', borderRadius: '8px' }}>
@@ -1637,7 +1745,12 @@ function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<AppContent />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/*" element={
+          <PrivateRoute>
+            <AppContent />
+          </PrivateRoute>
+        } />
       </Routes>
     </Router>
   );

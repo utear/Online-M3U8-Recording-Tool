@@ -17,9 +17,10 @@ const {
   getAllTasks, 
   addTaskHistory, 
   getTaskHistory 
-} = require('./models/database');
-const iptvService = require('./services/iptvService');
-const iptvRoutes = require('./routes/iptvRoutes');
+} = require(path.join(__dirname, 'models', 'database'));
+const iptvService = require(path.join(__dirname, 'services', 'iptvService'));
+const iptvRoutes = require(path.join(__dirname, 'routes', 'iptvRoutes'));
+const { validateUser, getUser, registerUser } = require(path.join(__dirname, 'models', 'userDb'));
 
 const app = express();
 const port = process.env.PORT || 3001;
@@ -47,73 +48,99 @@ app.use('/downloads', express.static(path.join(__dirname, 'downloads')));
 const JWT_SECRET = 'your-secret-key';
 
 // 中间件：验证JWT token
-const authenticateToken = (req, res, next) => {
+function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 
   if (!token) {
-    return res.status(401).json({ message: '未提供认证token' });
+    return res.status(401).json({ message: '未授权' });
   }
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
+  jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key', (err, decoded) => {
     if (err) {
-      return res.status(403).json({ message: 'token无效或已过期' });
+      console.error('token验证失败:', err);
+      return res.status(403).json({ message: '无效的token' });
     }
-    req.user = user;
+
+    req.user = decoded;
     next();
   });
 };
 
-// 读取用户数据
-const getUsersFromFile = () => {
-  try {
-    const usersFile = path.join(__dirname, 'data', 'users.json');
-    if (fs.existsSync(usersFile)) {
-      const data = fs.readFileSync(usersFile, 'utf8');
-      return JSON.parse(data);
-    }
-  } catch (error) {
-    console.error('读取用户数据失败:', error);
-  }
-  return [];
-};
-
 // 登录路由
 app.post('/api/auth/login', async (req, res) => {
-  const { email, password } = req.body;
-  const users = getUsersFromFile();
-  
-  const user = users.find(u => u.email === email);
-  
-  if (!user) {
-    return res.status(401).json({ message: '用户不存在' });
-  }
-  
-  const validPassword = await bcrypt.compare(password, user.password);
-  
-  if (!validPassword) {
-    return res.status(401).json({ message: '密码错误' });
-  }
-  
-  const token = jwt.sign(
-    { id: user.id, email: user.email, role: user.role },
-    JWT_SECRET,
-    { expiresIn: '24h' }
-  );
-  
-  res.json({
-    token,
-    user: {
-      id: user.id,
-      email: user.email,
-      role: user.role
+  try {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({ message: '用户名和密码不能为空' });
     }
-  });
+
+    // 验证用户
+    const user = await validateUser(username, password);
+
+    if (!user) {
+      return res.status(401).json({ message: '用户名或密码错误' });
+    }
+
+    // 生成token，使用数据库中的角色信息
+    const token = jwt.sign(
+      { 
+        id: user.id, 
+        username: user.username,
+        role: user.role  // 使用数据库中的角色
+      },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '24h' }
+    );
+
+    res.json({ 
+      token, 
+      user: { 
+        id: user.id, 
+        username: user.username,
+        role: user.role  // 使用数据库中的角色
+      } 
+    });
+  } catch (error) {
+    console.error('登录失败:', error);
+    res.status(500).json({ message: '登录失败' });
+  }
 });
 
-// 获取当前用户信息
-app.get('/api/auth/me', authenticateToken, (req, res) => {
-  res.json(req.user);
+// 注册路由
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    
+    if (!username || !password) {
+      return res.status(400).json({ message: '用户名和密码不能为空' });
+    }
+
+    // 检查用户名是否已存在
+    const existingUser = await getUser(username);
+    if (existingUser) {
+      return res.status(400).json({ message: '用户名已存在' });
+    }
+
+    // 创建新用户
+    await registerUser(username, password);
+
+    res.status(201).json({ message: '注册成功' });
+  } catch (error) {
+    console.error('注册错误:', error);
+    res.status(500).json({ message: '服务器错误' });
+  }
+});
+
+// 获取用户信息
+app.get('/api/users/me', authenticateToken, async (req, res) => {
+  try {
+    const user = await getUser(req.user.username);
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ message: '获取用户信息失败' });
+  }
 });
 
 // 存储所有活动的录制任务
@@ -282,10 +309,11 @@ const broadcastTaskOutput = (taskId, output, type = 'terminal_output') => {
 };
 
 // 开始录制的API
-app.post('/api/start-recording', async (req, res) => {
+app.post('/api/start-recording', authenticateToken, async (req, res) => {
   try {
     const { url, options } = req.body;
     const taskId = Date.now().toString();
+    const username = req.user.username;
     
     // 构建命令行参数
     const args = [url];
@@ -342,22 +370,28 @@ app.post('/api/start-recording', async (req, res) => {
     // 创建任务记录
     const task = {
       id: taskId,
+      username: req.user.username,
       url,
       status: 'running',
       createdAt: new Date().toISOString(),
-      options
+      lastOutput: '',
+      outputFile: '',
+      options: JSON.stringify(options)
     };
     
     await addTask(task);
+    console.log(`[${new Date().toLocaleString()}] 创建新任务:`, { taskId, url, username });
     
     // 存储任务信息
     const outputFile = path.join(options['save-dir'], options['save-name'] || 'output.ts');
     activeTasks.set(taskId, {
       id: taskId,
+      username: req.user.username,
       url,
       status: 'running',
-      process: childProcess,
+      createdAt: new Date().toISOString(),
       options,
+      process: childProcess,
       outputFile,
       saveDir: options['save-dir'],
       outputHistory: '' // 存储历史输出
@@ -504,10 +538,11 @@ app.post('/api/start-recording', async (req, res) => {
   }
 });
 
-// 获取任务状态的API
-app.get('/api/tasks', async (req, res) => {
+// 获取任务列表
+app.get('/api/tasks', authenticateToken, async (req, res) => {
   try {
-    const tasks = await getAllTasks();
+    const isAdmin = req.user.role === 'admin';
+    const tasks = await getAllTasks(req.user.username, isAdmin);
     res.json(tasks);
   } catch (error) {
     console.error('获取任务列表失败:', error);
@@ -516,7 +551,7 @@ app.get('/api/tasks', async (req, res) => {
 });
 
 // 获取任务历史记录的API
-app.get('/api/tasks/:taskId/history', async (req, res) => {
+app.get('/api/tasks/:taskId/history', authenticateToken, async (req, res) => {
   try {
     const { taskId } = req.params;
     const history = await getTaskHistory(taskId);
@@ -528,7 +563,7 @@ app.get('/api/tasks/:taskId/history', async (req, res) => {
 });
 
 // 停止录制的API
-app.post('/api/stop-recording/:taskId', async (req, res) => {
+app.post('/api/stop-recording/:taskId', authenticateToken, async (req, res) => {
   try {
     const { taskId } = req.params;
     const task = activeTasks.get(taskId);
@@ -553,7 +588,7 @@ app.post('/api/stop-recording/:taskId', async (req, res) => {
 });
 
 // 删除任务的API
-app.delete('/api/tasks/:taskId', async (req, res) => {
+app.delete('/api/tasks/:taskId', authenticateToken, async (req, res) => {
   try {
     const { taskId } = req.params;
     console.log(`[${new Date().toLocaleString()}] 开始删除任务: ${taskId}`);
@@ -652,7 +687,7 @@ app.delete('/api/tasks/:taskId', async (req, res) => {
 });
 
 // 获取文件下载链接
-app.get('/api/download/:taskId', (req, res) => {
+app.get('/api/download/:taskId', authenticateToken, (req, res) => {
   const { taskId } = req.params;
   console.log(`[${new Date().toLocaleString()}] 开始下载任务: ${taskId}`);
   
