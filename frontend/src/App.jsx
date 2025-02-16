@@ -33,6 +33,56 @@ const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3002'
 // 配置axios默认baseURL
 axios.defaults.baseURL = API_BASE_URL;
 
+// Token刷新函数
+const refreshToken = async () => {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    const response = await axios.post('/api/auth/refresh-token', {}, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    if (response.data.token) {
+      localStorage.setItem('token', response.data.token);
+      return response.data.token;
+    }
+  } catch (error) {
+    console.error('刷新token失败:', error);
+    // 如果刷新失败，清除token并重定向到登录页
+    localStorage.removeItem('token');
+    window.location.href = '/login';
+  }
+};
+
+// 设置axios拦截器
+axios.interceptors.request.use(async (config) => {
+  const token = localStorage.getItem('token');
+  if (!token) return config;
+
+  try {
+    // 解析token以检查过期时间
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const expirationTime = payload.exp * 1000; // 转换为毫秒
+    const currentTime = Date.now();
+    const timeUntilExpiry = expirationTime - currentTime;
+
+    // 如果token将在1小时内过期，尝试刷新
+    if (timeUntilExpiry < 3600000) {
+      const newToken = await refreshToken();
+      if (newToken) {
+        config.headers.Authorization = `Bearer ${newToken}`;
+      }
+    } else {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  } catch (error) {
+    console.error('处理token时出错:', error);
+  }
+
+  return config;
+});
+
 // 添加请求拦截器
 axios.interceptors.request.use(
   config => {
@@ -767,75 +817,18 @@ function AppContent() {
       message.loading({ content: '准备下载...', key: 'download' });
       
       const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/api/download/${record.id}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`下载失败: ${response.statusText}`);
-      }
-
-      // 获取文件大小
-      const contentLength = response.headers.get('content-length');
-      const total = parseInt(contentLength, 10);
-
-      // 创建响应流读取器
-      const reader = response.body.getReader();
-      let receivedLength = 0;
-
-      // 创建进度提示
-      const progress = document.createElement('div');
-      progress.style.position = 'fixed';
-      progress.style.top = '50%';
-      progress.style.left = '50%';
-      progress.style.transform = 'translate(-50%, -50%)';
-      progress.style.padding = '20px';
-      progress.style.background = 'rgba(0,0,0,0.7)';
-      progress.style.color = 'white';
-      progress.style.borderRadius = '8px';
-      progress.style.zIndex = '1000';
-      document.body.appendChild(progress);
-
-      // 读取数据流
-      const chunks = [];
-      while(true) {
-        const {done, value} = await reader.read();
-        
-        if (done) {
-          document.body.removeChild(progress);
-          break;
-        }
-        
-        chunks.push(value);
-        receivedLength += value.length;
-        
-        // 更新进度
-        const percentComplete = (receivedLength / total) * 100;
-        progress.textContent = `下载中... ${percentComplete.toFixed(1)}%`;
-      }
-
-      // 合并数据块
-      const blob = new Blob(chunks);
-      
-      // 获取文件名
-      const contentDisposition = response.headers.get('content-disposition');
-      const fileName = contentDisposition
-        ? decodeURIComponent(contentDisposition.split('filename=')[1].replace(/['"]/g, ''))
-        : `${record.id}.ts`;
-
-      // 创建下载
-      const url = window.URL.createObjectURL(blob);
+      // 创建一个临时的 <a> 标签直接使用 href 下载
       const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
+      a.href = `${API_BASE_URL}/api/download/${record.id}`;
+      // 添加认证头
+      a.setAttribute('download', ''); // 让浏览器知道这是一个下载链接
+      // 添加认证token到URL中
+      a.href = a.href + `?token=${token}`;
       document.body.appendChild(a);
       a.click();
-      window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
-      message.success({ content: '下载完成', key: 'download' });
+      message.success({ content: '开始下载', key: 'download' });
     } catch (error) {
       console.error('下载失败:', error);
       message.error({ content: '下载失败: ' + error.message, key: 'download' });

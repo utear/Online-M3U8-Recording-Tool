@@ -45,7 +45,7 @@ app.use('/api/iptv', iptvRoutes);
 app.use('/downloads', express.static(path.join(__dirname, 'downloads')));
 
 // JWT密钥
-const JWT_SECRET = 'your-secret-key';
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 // 中间件：验证JWT token
 function authenticateToken(req, res, next) {
@@ -56,7 +56,7 @@ function authenticateToken(req, res, next) {
     return res.status(401).json({ message: '未授权' });
   }
 
-  jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key', (err, decoded) => {
+  jwt.verify(token, JWT_SECRET, (err, decoded) => {
     if (err) {
       console.error('token验证失败:', err);
       return res.status(403).json({ message: '无效的token' });
@@ -90,7 +90,7 @@ app.post('/api/auth/login', async (req, res) => {
         username: user.username,
         role: user.role  // 使用数据库中的角色
       },
-      process.env.JWT_SECRET || 'your-secret-key',
+      JWT_SECRET,
       { expiresIn: '24h' }
     );
 
@@ -130,6 +130,46 @@ app.post('/api/auth/register', async (req, res) => {
   } catch (error) {
     console.error('注册错误:', error);
     res.status(500).json({ message: '服务器错误' });
+  }
+});
+
+// 刷新token路由
+app.post('/api/auth/refresh-token', async (req, res) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ message: '未授权' });
+  }
+
+  try {
+    // 即使token过期也尝试解码
+    const decoded = jwt.decode(token);
+    if (!decoded) {
+      return res.status(403).json({ message: '无效的token' });
+    }
+
+    // 获取用户信息
+    const user = await getUser(decoded.username);
+    if (!user) {
+      return res.status(403).json({ message: '用户不存在' });
+    }
+
+    // 生成新token
+    const newToken = jwt.sign(
+      { 
+        id: user.id, 
+        username: user.username,
+        role: user.role
+      },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    res.json({ token: newToken });
+  } catch (error) {
+    console.error('刷新token失败:', error);
+    res.status(403).json({ message: '刷新token失败' });
   }
 });
 
@@ -687,12 +727,27 @@ app.delete('/api/tasks/:taskId', authenticateToken, async (req, res) => {
 });
 
 // 获取文件下载链接
-app.get('/api/download/:taskId', authenticateToken, (req, res) => {
+app.get('/api/download/:taskId', async (req, res) => {
   const { taskId } = req.params;
-  console.log(`[${new Date().toLocaleString()}] 开始下载任务: ${taskId}`);
-  
+  const { token } = req.query;
+
+  // 验证 token
+  if (!token) {
+    return res.status(401).json({ error: '未提供认证令牌' });
+  }
+
   try {
-    const task = activeTasks.get(taskId);
+    // 验证 JWT token，使用环境变量或默认值
+    const user = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+    if (!user) {
+      return res.status(401).json({ error: '无效的认证令牌' });
+    }
+
+    console.log(`[${new Date().toLocaleString()}] 开始下载任务: ${taskId}`);
+    
+    // 从数据库中获取任务信息
+    const tasks = await getAllTasks(user.username, user.role === 'admin');
+    const task = tasks.find(t => t.id === taskId);
     
     if (!task || !task.outputFile) {
       console.error(`[${new Date().toLocaleString()}] 任务未找到: ${taskId}`);
