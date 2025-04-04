@@ -89,6 +89,9 @@ VITE_PORT=3005     # 前端服务端口
 # API 接口配置（根据实际部署环境修改）
 VITE_API_BASE_URL=http://your-server-ip:3001  # 替换为实际的服务器地址
 VITE_WS_URL=ws://your-server-ip:3002          # 替换为实际的服务器地址
+
+# 允许访问的主机配置（解决生产环境跨域问题）
+VITE_ALLOWED_HOSTS=your-domain.com,www.your-domain.com  # 多个域名用逗号分隔
 ```
 
 3. HTTP代理配置（如果需要）:
@@ -104,6 +107,7 @@ const PROXY_CONFIG = {
 - 开发环境可使用 localhost
 - 生产环境请替换为实际的服务器IP或域名
 - 如果服务器无法直接访问GitHub，请配置HTTP代理
+- 在生产环境中，需要在 `VITE_ALLOWED_HOSTS` 中配置允许访问的域名，以解决跨域访问限制问题
 
 ### 启动
 
@@ -171,6 +175,13 @@ const adminUser = {
 ```
 
 ## 更新日志
+
+### 当前更新
+#### 优化功能
+1. **前端配置优化**:
+   - 新增 `VITE_ALLOWED_HOSTS` 环境变量，支持动态配置允许访问的域名
+   - 解决生产环境中的跨域访问限制问题
+   - 提高部署灵活性，支持多域名配置
 
 ### 2025-02-16
 #### 优化功能
