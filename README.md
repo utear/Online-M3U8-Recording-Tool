@@ -182,10 +182,12 @@ const adminUser = {
    - 修改了auth.js路由，使其使用userDb.js中的函数而不是Mongoose模型
    - 在server.js中正确导入和使用auth.js路由模块
    - 简化了用户注册和登录流程，移除了email字段和一些不必要的状态检查
+
 2.**前端配置优化**：
    - 添加了VITE_ALLOWED_HOSTS环境变量，支持动态配置允许访问的域名
    - 在vite.config.js中使用该环境变量配置allowedHosts
    - 更新了README.md，添加了关于新环境变量的说明和使用方法
+
 3.**其他小改动**：
    - 修复了一些格式问题（空格、换行等）
 
