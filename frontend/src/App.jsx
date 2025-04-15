@@ -24,6 +24,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'r
 import IPTVPage from './pages/IPTVPage';
 import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/admin/Dashboard';
+import SelectionHelper from './components/SelectionHelper';
 
 const { Header, Content, Sider } = Layout
 const { Option } = Select
@@ -74,30 +75,24 @@ axios.interceptors.request.use(async (config) => {
       const newToken = await refreshToken();
       if (newToken) {
         config.headers.Authorization = `Bearer ${newToken}`;
+      } else {
+        config.headers.Authorization = `Bearer ${token}`;
       }
     } else {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    console.log('请求头部已设置:', config.headers);
   } catch (error) {
     console.error('处理token时出错:', error);
+    // 出错时仍然设置token
+    config.headers.Authorization = `Bearer ${token}`;
   }
 
   return config;
+}, error => {
+  return Promise.reject(error);
 });
-
-// 添加请求拦截器
-axios.interceptors.request.use(
-  config => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  error => {
-    return Promise.reject(error);
-  }
-);
 
 // 添加响应拦截器
 axios.interceptors.response.use(
@@ -855,11 +850,25 @@ function AppContent() {
   // 删除任务
   const deleteTask = useCallback(async (taskId) => {
     try {
-      await axios.delete(`${API_BASE_URL}/api/tasks/${taskId}`);
+      console.log(`开始删除任务: ${taskId}`);
+      console.log(`删除请求URL: ${API_BASE_URL}/api/tasks/${taskId}`);
+
+      // 检查认证信息
+      const token = localStorage.getItem('token');
+      console.log('当前认证Token:', token ? '存在' : '不存在');
+
+      // 手动设置认证头
+      const headers = { Authorization: `Bearer ${token}` };
+      console.log('手动设置认证头:', headers);
+
+      const response = await axios.delete(`${API_BASE_URL}/api/tasks/${taskId}`, { headers });
+      console.log('删除任务响应:', response.data);
+
       message.success('删除成功');
       fetchTasks();
     } catch (error) {
-      message.error('删除失败');
+      console.error('删除任务失败:', error);
+      message.error(`删除失败: ${error.message}`);
     }
   }, [fetchTasks]);
 
@@ -1035,6 +1044,32 @@ function AppContent() {
         maskClosable={false}
         destroyOnClose={false}
       >
+        {/* 添加选择菜单辅助组件 */}
+        <SelectionHelper
+          terminalOutput={terminal.output}
+          onSelect={(key) => {
+            // 当用户点击选择按钮时，自动发送选择到终端
+            if (wsRef.current?.readyState === WebSocket.OPEN) {
+              wsRef.current.send(JSON.stringify({
+                type: 'process_input',
+                taskId,
+                input: key
+              }));
+
+              // 在终端中显示用户的选择
+              setTerminals(prev => {
+                const newTerminals = new Map(prev);
+                const terminal = newTerminals.get(taskId);
+                if (terminal) {
+                  terminal.output += (terminal.output.endsWith('\n') ? '' : '\n') + `$ ${key}`;
+                  newTerminals.set(taskId, { ...terminal });
+                  terminalsRef.current = newTerminals;
+                }
+                return newTerminals;
+              });
+            }
+          }}
+        />
         <div
           id={`terminal-${taskId}`}
           style={{

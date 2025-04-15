@@ -687,6 +687,9 @@ app.post('/api/stop-recording/:taskId', authenticateToken, async (req, res) => {
 
 // 删除任务的API
 app.delete('/api/tasks/:taskId', authenticateToken, async (req, res) => {
+  console.log(`[${new Date().toLocaleString()}] 收到删除任务请求: ${req.params.taskId}`);
+  console.log(`[${new Date().toLocaleString()}] 请求用户: ${req.user.username}, 角色: ${req.user.role}`);
+  console.log(`[${new Date().toLocaleString()}] 请求头部:`, req.headers);
   try {
     const { taskId } = req.params;
     console.log(`[${new Date().toLocaleString()}] 开始删除任务: ${taskId}`);
@@ -740,9 +743,14 @@ app.delete('/api/tasks/:taskId', authenticateToken, async (req, res) => {
     if (taskInfo && taskInfo.outputFile) {
       // 1. 尝试使用完整路径
       let downloadPath = taskInfo.outputFile;
+      console.log(`[${new Date().toLocaleString()}] 检查文件路径: ${downloadPath}`);
+      console.log(`[${new Date().toLocaleString()}] 文件是否存在: ${fs.existsSync(downloadPath)}`);
+
       if (!fs.existsSync(downloadPath)) {
         // 2. 如果完整路径不存在，尝试在downloads目录中查找
         downloadPath = path.join(__dirname, 'downloads', path.basename(taskInfo.outputFile));
+        console.log(`[${new Date().toLocaleString()}] 尝试备用路径: ${downloadPath}`);
+        console.log(`[${new Date().toLocaleString()}] 备用路径文件是否存在: ${fs.existsSync(downloadPath)}`);
       }
 
       console.log(`[${new Date().toLocaleString()}] 尝试删除下载文件: ${downloadPath}`);
@@ -762,8 +770,22 @@ app.delete('/api/tasks/:taskId', authenticateToken, async (req, res) => {
       const tempDirName = fileName.replace(/\.[^/.]+$/, '');
       const tempPath = path.join(__dirname, 'temp', tempDirName);
       console.log(`[${new Date().toLocaleString()}] 尝试删除临时目录: ${tempPath}`);
+      console.log(`[${new Date().toLocaleString()}] 临时目录是否存在: ${fs.existsSync(tempPath)}`);
+
       try {
         if (fs.existsSync(tempPath)) {
+          // 列出目录内容
+          const dirContents = fs.readdirSync(tempPath);
+          console.log(`[${new Date().toLocaleString()}] 临时目录内容:`, dirContents);
+
+          // 检查文件权限
+          try {
+            fs.accessSync(tempPath, fs.constants.W_OK);
+            console.log(`[${new Date().toLocaleString()}] 有写入权限`);
+          } catch (err) {
+            console.error(`[${new Date().toLocaleString()}] 没有写入权限:`, err);
+          }
+
           fs.rmSync(tempPath, { recursive: true, force: true });
           console.log(`[${new Date().toLocaleString()}] 成功删除临时目录: ${tempPath}`);
         } else {
