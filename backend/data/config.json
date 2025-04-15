@@ -1,0 +1,11 @@
+{
+  "iptvSource": "https://github.com/vbskycn/iptv/blob/master/tv/iptv4.m3u",
+  "iptvUpdateInterval": 4,
+  "useProxy": false,
+  "proxyHost": "127.0.0.1",
+  "proxyPort": 7890,
+  "downloadPath": "./downloads",
+  "tempPath": "./temp",
+  "maxConcurrentTasks": 5,
+  "logLevel": "INFO"
+}

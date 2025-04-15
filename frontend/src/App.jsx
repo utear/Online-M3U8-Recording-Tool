@@ -16,12 +16,14 @@ import {
   VideoCameraOutlined,
   SendOutlined,
   PlaySquareOutlined,
+  DashboardOutlined,
 } from '@ant-design/icons'
 import axios from 'axios'
 import './App.css'
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import IPTVPage from './pages/IPTVPage';
 import LoginPage from './pages/LoginPage';
+import Dashboard from './pages/admin/Dashboard';
 
 const { Header, Content, Sider } = Layout
 const { Option } = Select
@@ -679,6 +681,21 @@ const PrivateRoute = ({ children }) => {
   return token ? children : null;
 };
 
+// 管理员权限验证组件
+const AdminRoute = ({ children }) => {
+  const token = localStorage.getItem('token');
+  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!token || !['admin', 'superadmin'].includes(user.role)) {
+      navigate('/login');
+    }
+  }, [token, user, navigate]);
+
+  return (token && ['admin', 'superadmin'].includes(user.role)) ? children : null;
+};
+
 function AppContent() {
   const [form] = Form.useForm();
   const [tasks, setTasks] = useState([]);
@@ -702,12 +719,12 @@ function AppContent() {
       console.log('WebSocket未连接，无法订阅任务');
       return;
     }
-    
+
     if (subscribedTasksRef.current.has(taskId)) {
       console.log('任务已订阅:', taskId);
       return true;
     }
-    
+
     console.log('订阅任务:', taskId);
     wsRef.current.send(JSON.stringify({
       type: 'subscribe',
@@ -720,12 +737,12 @@ function AppContent() {
   // 打开控制台
   const openConsole = useCallback((taskId) => {
     console.log('打开控制台:', taskId);
-    
+
     // 先更新终端状态
     setTerminals(prev => {
       const newTerminals = new Map(prev);
-      const terminal = newTerminals.get(taskId) || { 
-        output: '', 
+      const terminal = newTerminals.get(taskId) || {
+        output: '',
         visible: true,
         input: ''
       };
@@ -734,7 +751,7 @@ function AppContent() {
       terminalsRef.current = newTerminals;
       return newTerminals;
     });
-    
+
     // 确保WebSocket连接已建立并订阅
     const trySubscribe = () => {
       if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -743,14 +760,14 @@ function AppContent() {
           type: 'get_history',
           taskId
         }));
-        
+
         // 然后订阅新的输出
         subscribeToTask(taskId);
         return true;
       }
       return false;
     };
-    
+
     // 如果当前无法订阅，设置重试
     if (!trySubscribe()) {
       console.log('订阅失败，开始重试');
@@ -760,14 +777,14 @@ function AppContent() {
           clearInterval(retrySubscribe);
         }
       }, 1000);
-      
+
       // 30秒后停止重试
       setTimeout(() => {
         clearInterval(retrySubscribe);
         console.log('停止重试订阅');
       }, 30000);
     }
-    
+
     setActiveTerminal(taskId);
   }, [subscribeToTask]);
 
@@ -794,7 +811,7 @@ function AppContent() {
     if (status === 'paused') {
       return <Tag color="warning">已暂停</Tag>;
     }
-    
+
     // 其他所有状态都显示为"录制中"
     return <Tag color="processing">录制中</Tag>;
   }, []);
@@ -815,7 +832,7 @@ function AppContent() {
   const handleDownload = useCallback(async (record) => {
     try {
       message.loading({ content: '准备下载...', key: 'download' });
-      
+
       const token = localStorage.getItem('token');
       // 创建一个临时的 <a> 标签直接使用 href 下载
       const a = document.createElement('a');
@@ -864,7 +881,7 @@ function AppContent() {
   // 优化任务控制按钮的渲染
   const renderTaskControls = useCallback((record) => {
     const buttons = [];
-    
+
     // 停止按钮始终可见
     buttons.push(
       <Button
@@ -940,7 +957,7 @@ function AppContent() {
   // 关闭控制台
   const closeConsole = useCallback((taskId) => {
     console.log('关闭控制台:', taskId);
-    
+
     // 取消订阅
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({
@@ -949,7 +966,7 @@ function AppContent() {
       }));
       subscribedTasksRef.current.delete(taskId);
     }
-    
+
     // 更新终端状态
     setTerminals(prev => {
       const newTerminals = new Map(prev);
@@ -963,7 +980,7 @@ function AppContent() {
       }
       return newTerminals;
     });
-    
+
     if (activeTerminal === taskId) {
       setActiveTerminal(null);
     }
@@ -973,7 +990,7 @@ function AppContent() {
   const handleTerminalInput = useCallback((taskId, input, e) => {
     if (e.key === 'Enter' && input.trim() && wsRef.current?.readyState === WebSocket.OPEN) {
       const trimmedInput = input.trim();
-      
+
       // 添加输入到终端输出
       setTerminals(prev => {
         const newTerminals = new Map(prev);
@@ -984,7 +1001,7 @@ function AppContent() {
           terminal.input = '';
           newTerminals.set(taskId, { ...terminal });
           terminalsRef.current = newTerminals;
-          
+
           // 自动滚动到底部
           requestAnimationFrame(() => {
             const terminalElement = document.querySelector(`#terminal-${taskId}`);
@@ -995,7 +1012,7 @@ function AppContent() {
         }
         return newTerminals;
       });
-      
+
       // 发送输入到后端
       wsRef.current.send(JSON.stringify({
         type: 'process_input',
@@ -1018,7 +1035,7 @@ function AppContent() {
         maskClosable={false}
         destroyOnClose={false}
       >
-        <div 
+        <div
           id={`terminal-${taskId}`}
           style={{
             ...terminalStyle,
@@ -1108,12 +1125,12 @@ function AppContent() {
       if (wsRef.current && (wsRef.current.readyState === WebSocket.CONNECTING || wsRef.current.readyState === WebSocket.OPEN)) {
         return;
       }
-      
+
       clearTimeout(reconnectTimeoutRef.current);
-      
+
       const ws = new WebSocket(WS_URL);
       wsRef.current = ws;
-      
+
       ws.onopen = () => {
         console.log('WebSocket客户端已连接');
         // 重新订阅所有可见的终端
@@ -1124,12 +1141,12 @@ function AppContent() {
           }
         });
       };
-      
+
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
           console.log('收到WebSocket消息:', data);
-          
+
           switch (data.type) {
             case 'terminal_output':
             case 'terminal_history':
@@ -1140,21 +1157,21 @@ function AppContent() {
                   visible: false,
                   input: ''
                 };
-                
+
                 if (data.type === 'terminal_history') {
                   terminal.output = formatTerminalOutput(data.output);
                 } else {
                   const newOutput = formatTerminalOutput(data.output);
                   if (newOutput) {
-                    terminal.output = terminal.output ? 
+                    terminal.output = terminal.output ?
                       terminal.output + (terminal.output.endsWith('\n') ? '' : '\n') + newOutput :
                       newOutput;
                   }
                 }
-                
+
                 newTerminals.set(data.taskId, { ...terminal });
                 terminalsRef.current = newTerminals;
-                
+
                 // 使用 RAF 确保滚动发生在 DOM 更新之后
                 requestAnimationFrame(() => {
                   const terminalElement = document.querySelector(`#terminal-${data.taskId}`);
@@ -1162,7 +1179,7 @@ function AppContent() {
                     terminalElement.scrollTop = terminalElement.scrollHeight;
                   }
                 });
-                
+
                 return newTerminals;
               });
               break;
@@ -1189,7 +1206,7 @@ function AppContent() {
 　　　　 　 　 return newTerminals;
 　　 　 　 　 });
 　　 　 　 　 break;
-　　 　 　 　
+
             case 'status':
 　　 　 　 　 setTasks(prevTasks => {
 　　　　 　 　 return prevTasks.map(task => {
@@ -1225,7 +1242,7 @@ function AppContent() {
     };
 
     connectWebSocket();
-    
+
     return () => {
       clearTimeout(reconnectTimeoutRef.current);
       if (wsRef.current) {
@@ -1253,7 +1270,7 @@ function AppContent() {
 
   const handleFormValuesChange = (changedValues, allValues) => {
     const formattedValues = { ...allValues };
-    
+
     // 处理日期时间转换
     if (changedValues['task-start-at']) {
       const dateObj = changedValues['task-start-at'];
@@ -1261,7 +1278,7 @@ function AppContent() {
         formattedValues['task-start-at'] = dateObj.format('YYYYMMDDHHmmss');
       }
     }
-    
+
     form.setFieldsValue(formattedValues);
   };
 
@@ -1270,7 +1287,7 @@ function AppContent() {
     try {
       setLoading(true)
       const options = {}
-      
+
       // 处理所有配置项
       Object.keys(RECORDING_OPTIONS).forEach(category => {
         RECORDING_OPTIONS[category].forEach(option => {
@@ -1289,7 +1306,7 @@ function AppContent() {
         url: values.url,
         options
       })
-      
+
       message.success('开始录制')
       form.resetFields()
       fetchTasks()
@@ -1318,8 +1335,8 @@ function AppContent() {
       case 'switch':
         return <Switch defaultChecked={option.defaultValue} />;
       case 'datetime':
-        return <DatePicker 
-          showTime 
+        return <DatePicker
+          showTime
           format="YYYY-MM-DD HH:mm:ss"
           placeholder={option.placeholder}
           style={{ width: '100%' }}
@@ -1591,6 +1608,11 @@ function AppContent() {
         <UserOutlined /> {user.username}
       </Menu.Item>
       <Menu.Divider />
+      {(user.role === 'admin' || user.role === 'superadmin') && (
+        <Menu.Item key="dashboard" onClick={() => navigate('/dashboard')}>
+          <DashboardOutlined /> 管理员仪表盘
+        </Menu.Item>
+      )}
       <Menu.Item key="logout" onClick={handleLogout}>
         <LogoutOutlined /> 退出登录
       </Menu.Item>
@@ -1599,14 +1621,14 @@ function AppContent() {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Header style={{ 
-        padding: '0 16px', 
+      <Header style={{
+        padding: '0 16px',
         background: '#f5222d',
         display: 'flex',
         alignItems: 'center',
         height: '64px'
       }}>
-        <div className="logo" style={{ 
+        <div className="logo" style={{
           color: '#fff',
           marginRight: '48px',
           display: 'flex',
@@ -1621,7 +1643,7 @@ function AppContent() {
           selectedKeys={[selectedKey]}
           mode="horizontal"
           onClick={({ key }) => setSelectedKey(key)}
-          style={{ 
+          style={{
             background: 'transparent',
             flex: 1,
             borderBottom: 'none',
@@ -1643,7 +1665,7 @@ function AppContent() {
           ]}
         />
         <Dropdown overlay={userMenu} placement="bottomRight">
-          <div style={{ 
+          <div style={{
             cursor: 'pointer',
             color: '#fff',
             display: 'flex',
@@ -1739,6 +1761,11 @@ function App() {
     <Router>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/dashboard" element={
+          <AdminRoute>
+            <Dashboard />
+          </AdminRoute>
+        } />
         <Route path="/*" element={
           <PrivateRoute>
             <AppContent />

@@ -21,6 +21,10 @@ const {
 const iptvService = require(path.join(__dirname, 'services', 'iptvService'));
 const iptvRoutes = require(path.join(__dirname, 'routes', 'iptvRoutes'));
 const authRoutes = require(path.join(__dirname, 'routes', 'auth'));
+const dashboardRoutes = require(path.join(__dirname, 'routes', 'dashboard'));
+const userRoutes = require(path.join(__dirname, 'routes', 'users'));
+const taskRoutes = require(path.join(__dirname, 'routes', 'tasks'));
+const settingsRoutes = require(path.join(__dirname, 'routes', 'settings'));
 const { validateUser, getUser, registerUser } = require(path.join(__dirname, 'models', 'userDb'));
 
 const app = express();
@@ -42,6 +46,10 @@ iptvService.init().catch(console.error);
 // 路由配置
 app.use('/api/iptv', iptvRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/dashboard', authenticateToken, dashboardRoutes);
+app.use('/api/users', authenticateToken, userRoutes);
+app.use('/api/tasks', authenticateToken, taskRoutes);
+app.use('/api/settings', authenticateToken, settingsRoutes);
 
 // 静态文件服务配置
 app.use('/downloads', express.static(path.join(__dirname, 'downloads')));
@@ -187,6 +195,9 @@ app.get('/api/users/me', authenticateToken, async (req, res) => {
 
 // 存储所有活动的录制任务
 const activeTasks = new Map();
+
+// 将activeTasks暴露为全局变量，便于其他模块访问
+global.activeTasks = activeTasks;
 
 // 确保下载目录存在
 const ensureDownloadDir = (dir) => {
@@ -589,6 +600,51 @@ app.get('/api/tasks', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('获取任务列表失败:', error);
     res.status(500).json({ message: '获取任务列表失败' });
+  }
+});
+
+// 获取任务的实时文件大小
+app.get('/api/tasks/:taskId/file-size', authenticateToken, async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const isAdmin = req.user.role === 'admin';
+
+    // 获取任务信息
+    const tasks = await getAllTasks(req.user.username, isAdmin);
+    const task = tasks.find(t => t.id === taskId);
+
+    if (!task) {
+      return res.status(404).json({ message: '任务不存在' });
+    }
+
+    // 如果有输出文件，获取实时文件大小
+    if (task.outputFile) {
+      try {
+        // 获取实际文件路径
+        const dir = path.dirname(task.outputFile);
+        const baseNameWithoutExt = path.basename(task.outputFile, path.extname(task.outputFile));
+        const files = fs.readdirSync(dir);
+        const actualFile = files.find(file => path.basename(file, path.extname(file)) === baseNameWithoutExt);
+
+        if (actualFile) {
+          const actualFilePath = path.join(dir, actualFile);
+          const fileSize = fs.statSync(actualFilePath).size;
+
+          // 更新数据库中的文件大小
+          await updateTaskOutput(taskId, actualFilePath, fileSize);
+
+          return res.json({ fileSize });
+        }
+      } catch (error) {
+        console.error(`获取文件大小失败: ${task.outputFile}`, error);
+      }
+    }
+
+    // 如果无法获取实时文件大小，返回数据库中的大小
+    res.json({ fileSize: task.fileSize || 0 });
+  } catch (error) {
+    console.error('获取文件大小失败:', error);
+    res.status(500).json({ message: '获取文件大小失败' });
   }
 });
 

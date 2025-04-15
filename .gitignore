@@ -35,3 +35,12 @@ Thumbs.db
 # Runtime data
 downloads/
 tmp/
+backend/temp/
+backend/data/iptv-list.json
+backend/data/tasks.db
+backend/data/users.db
+
+# Temporary files
+*.tmp
+*.ts
+*.ts.tmp
