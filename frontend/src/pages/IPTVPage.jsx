@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Input, List, Button, Space, message, Select, Spin } from 'antd';
-import { SearchOutlined } from '@ant-design/icons';
+import { Input, List, Button, Space, message, Select, Spin, Radio, Modal, Checkbox } from 'antd';
+import { SearchOutlined, PlayCircleOutlined, AppstoreAddOutlined } from '@ant-design/icons';
 import VirtualList from 'rc-virtual-list';
 import axios from 'axios';
 
@@ -14,6 +14,11 @@ const IPTVPage = ({ form }) => {
   const [loading, setLoading] = useState(true);
   const [selectedGroup, setSelectedGroup] = useState('all');
   const [page, setPage] = useState(1);
+  const [recordMode, setRecordMode] = useState('single'); // 'single' 或 'batch'
+  const [batchModalVisible, setBatchModalVisible] = useState(false);
+  const [selectedChannels, setSelectedChannels] = useState([]);
+  const [selectAll, setSelectAll] = useState(false);
+  const [batchSearchText, setBatchSearchText] = useState('');
 
   // 使用useMemo缓存分组列表
   const groups = useMemo(() => {
@@ -24,12 +29,12 @@ const IPTVPage = ({ form }) => {
   // 使用useMemo缓存过滤后的频道列表
   const filteredChannels = useMemo(() => {
     return channels.filter(channel => {
-      const matchesSearch = searchText === '' || 
+      const matchesSearch = searchText === '' ||
         channel.name.toLowerCase().includes(searchText.toLowerCase()) ||
         channel.group.toLowerCase().includes(searchText.toLowerCase());
-      
+
       const matchesGroup = selectedGroup === 'all' || channel.group === selectedGroup;
-      
+
       return matchesSearch && matchesGroup;
     });
   }, [channels, searchText, selectedGroup]);
@@ -59,11 +64,87 @@ const IPTVPage = ({ form }) => {
   };
 
   const handleSelectChannel = (url) => {
-    if (form) {
-      form.setFieldsValue({ url });
-      message.success('已填入播放地址');
+    if (recordMode === 'single') {
+      if (form) {
+        form.setFieldsValue({ url });
+        message.success('已填入播放地址');
+      } else {
+        message.error('无法找到视频流地址输入框');
+      }
     } else {
-      message.error('无法找到视频流地址输入框');
+      // 批量模式下打开选择对话框
+      setBatchSearchText(''); // 重置搜索文本
+      setBatchModalVisible(true);
+    }
+  };
+
+  // 切换录制模式
+  const handleModeChange = (e) => {
+    setRecordMode(e.target.value);
+    // 切换模式时清空选中的频道
+    setSelectedChannels([]);
+    setSelectAll(false);
+  };
+
+  // 切换频道选中状态
+  const toggleChannelSelection = (channel) => {
+    setSelectedChannels(prev => {
+      const isSelected = prev.some(c => c.url === channel.url);
+      if (isSelected) {
+        return prev.filter(c => c.url !== channel.url);
+      } else {
+        return [...prev, channel];
+      }
+    });
+  };
+
+  // 全选/取消全选
+  const handleSelectAllChange = (e) => {
+    const checked = e.target.checked;
+    setSelectAll(checked);
+
+    // 获取当前过滤后的频道
+    const currentFilteredChannels = filteredChannels.filter(channel =>
+      batchSearchText ?
+        channel.name.toLowerCase().includes(batchSearchText.toLowerCase()) ||
+        channel.group.toLowerCase().includes(batchSearchText.toLowerCase())
+      : true
+    );
+
+    if (checked) {
+      // 如果已经有选中的频道，则合并当前选中的和新过滤的
+      const existingSelected = selectedChannels.filter(selected =>
+        !currentFilteredChannels.some(filtered => filtered.url === selected.url)
+      );
+      setSelectedChannels([...existingSelected, ...currentFilteredChannels]);
+    } else {
+      // 取消选中当前过滤的频道，保留其他选中的
+      setSelectedChannels(selectedChannels.filter(selected =>
+        !currentFilteredChannels.some(filtered => filtered.url === selected.url)
+      ));
+    }
+  };
+
+  // 确认批量选择
+  const handleBatchConfirm = () => {
+    if (selectedChannels.length === 0) {
+      message.warning('请至少选择一个频道');
+      return;
+    }
+
+    if (form) {
+      // 将选中的URL填入到批量录制表单中
+      const urls = selectedChannels.map(channel => channel.url).join('\n');
+
+      // 切换到录制页面并选择批量录制选项卡
+      window.dispatchEvent(new CustomEvent('switchToBatchRecording', {
+        detail: { urls }
+      }));
+
+      message.success(`已选择${selectedChannels.length}个频道进行批量录制`);
+      setBatchModalVisible(false);
+    } else {
+      message.error('无法找到批量录制表单');
     }
   };
 
@@ -80,19 +161,19 @@ const IPTVPage = ({ form }) => {
   return (
     <div style={{ padding: '20px' }}>
       <h2 style={{ color: '#f5222d', marginBottom: '20px' }}>IPTV直播频道列表</h2>
-      
-      <Space style={{ marginBottom: '20px' }} size="large">
+
+      <Space style={{ marginBottom: '20px' }} size="large" wrap>
         <Input
           placeholder="输入频道名称搜索..."
           prefix={<SearchOutlined style={{ color: '#f5222d' }} />}
           value={searchText}
           onChange={(e) => handleSearch(e.target.value)}
-          style={{ 
+          style={{
             width: '300px',
             borderColor: '#f5222d',
           }}
         />
-        
+
         <Select
           value={selectedGroup}
           onChange={handleGroupChange}
@@ -105,6 +186,20 @@ const IPTVPage = ({ form }) => {
             </Option>
           ))}
         </Select>
+
+        <Radio.Group
+          value={recordMode}
+          onChange={handleModeChange}
+          buttonStyle="solid"
+          style={{ marginLeft: '20px' }}
+        >
+          <Radio.Button value="single">
+            <PlayCircleOutlined /> 单个录制
+          </Radio.Button>
+          <Radio.Button value="batch">
+            <AppstoreAddOutlined /> 批量录制
+          </Radio.Button>
+        </Radio.Group>
       </Space>
 
       {loading ? (
@@ -116,7 +211,7 @@ const IPTVPage = ({ form }) => {
           <div style={{ marginBottom: '10px', color: '#8c8c8c' }}>
             共找到 {filteredChannels.length} 个频道
           </div>
-          
+
           <List>
             <VirtualList
               data={displayChannels}
@@ -129,8 +224,8 @@ const IPTVPage = ({ form }) => {
                 <List.Item
                   key={channel.url}
                   actions={[
-                    <Button 
-                      type="link" 
+                    <Button
+                      type="link"
                       onClick={() => handleSelectChannel(channel.url)}
                       style={{ color: '#f5222d' }}
                     >
@@ -156,6 +251,96 @@ const IPTVPage = ({ form }) => {
           </List>
         </>
       )}
+
+      {/* 批量选择对话框 */}
+      <Modal
+        title="选择要批量录制的频道"
+        open={batchModalVisible}
+        onOk={handleBatchConfirm}
+        onCancel={() => setBatchModalVisible(false)}
+        width={800}
+        okText="确认选择"
+        cancelText="取消"
+      >
+        <div style={{ marginBottom: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <div>
+              <Checkbox
+                checked={(() => {
+                  // 当前过滤后的频道
+                  const currentFilteredChannels = filteredChannels.filter(channel =>
+                    batchSearchText ?
+                      channel.name.toLowerCase().includes(batchSearchText.toLowerCase()) ||
+                      channel.group.toLowerCase().includes(batchSearchText.toLowerCase())
+                    : true
+                  );
+                  // 如果当前过滤后的频道为空，则不勾选
+                  return currentFilteredChannels.length > 0 &&
+                    currentFilteredChannels.every(channel =>
+                      selectedChannels.some(selected => selected.url === channel.url)
+                    );
+                })()}
+                onChange={handleSelectAllChange}
+                style={{ marginRight: '8px' }}
+              >
+                全选
+              </Checkbox>
+              <span style={{ marginLeft: '16px' }}>
+                已选择 <span style={{ color: '#f5222d', fontWeight: 'bold' }}>{selectedChannels.length}</span> 个频道
+              </span>
+            </div>
+            <Input.Search
+              placeholder="搜索频道名称"
+              style={{ width: 200 }}
+              allowClear
+              value={batchSearchText}
+              onChange={(e) => setBatchSearchText(e.target.value)}
+              onSearch={(value) => setBatchSearchText(value)}
+            />
+          </div>
+        </div>
+
+        <List
+          dataSource={filteredChannels.filter(channel =>
+            batchSearchText ?
+              channel.name.toLowerCase().includes(batchSearchText.toLowerCase()) ||
+              channel.group.toLowerCase().includes(batchSearchText.toLowerCase())
+            : true
+          )}
+          renderItem={channel => (
+            <List.Item
+              key={channel.url}
+              style={{
+                cursor: 'pointer',
+                backgroundColor: selectedChannels.some(c => c.url === channel.url) ? '#f6f6f6' : 'transparent',
+                padding: '8px 16px',
+                borderRadius: '4px',
+                marginBottom: '4px'
+              }}
+              onClick={() => toggleChannelSelection(channel)}
+            >
+              <div style={{ display: 'flex', flexDirection: 'column', width: '100%' }}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                  <Checkbox
+                    checked={selectedChannels.some(c => c.url === channel.url)}
+                    onChange={(e) => {
+                      e.stopPropagation();
+                      toggleChannelSelection(channel);
+                    }}
+                    style={{ marginRight: '8px' }}
+                  />
+                  <span style={{ fontWeight: 'bold' }}>{channel.name}</span>
+                  <span style={{ color: '#888', marginLeft: '8px' }}>{channel.group}</span>
+                </div>
+                <div style={{ marginLeft: '24px', color: '#aaa', fontSize: '11px', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {channel.url.substring(0, 80)}...
+                </div>
+              </div>
+            </List.Item>
+          )}
+          style={{ maxHeight: '400px', overflow: 'auto' }}
+        />
+      </Modal>
     </div>
   );
 };

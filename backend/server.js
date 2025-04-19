@@ -25,6 +25,7 @@ const dashboardRoutes = require(path.join(__dirname, 'routes', 'dashboard'));
 const userRoutes = require(path.join(__dirname, 'routes', 'users'));
 const taskRoutes = require(path.join(__dirname, 'routes', 'tasks'));
 const settingsRoutes = require(path.join(__dirname, 'routes', 'settings'));
+const batchRoutes = require(path.join(__dirname, 'routes', 'batch'));
 const { validateUser, getUser, registerUser } = require(path.join(__dirname, 'models', 'userDb'));
 
 const app = express();
@@ -50,6 +51,7 @@ app.use('/api/dashboard', authenticateToken, dashboardRoutes);
 app.use('/api/users', authenticateToken, userRoutes);
 app.use('/api/tasks', authenticateToken, taskRoutes);
 app.use('/api/settings', authenticateToken, settingsRoutes);
+app.use('/api/batch', authenticateToken, batchRoutes);
 
 // 静态文件服务配置
 app.use('/downloads', express.static(path.join(__dirname, 'downloads')));
@@ -325,7 +327,109 @@ wss.on('connection', (ws) => {
 
 // 添加消息缓冲区
 const messageBuffer = new Map();
-const MESSAGE_BATCH_INTERVAL = 200; // 200ms发送一次消息
+// 将messageBuffer暴露为全局变量，便于其他模块访问
+global.messageBuffer = messageBuffer;
+const MESSAGE_BATCH_INTERVAL = 100; // 100ms发送一次消息，原来是200ms
+
+// 实时文件大小更新间隔（毫秒）
+const FILE_SIZE_UPDATE_INTERVAL = 2000; // 2秒检查一次文件大小变化
+
+// 定期检查文件大小并更新
+setInterval(() => {
+  // 遍历所有活动任务
+  for (const [taskId, task] of activeTasks.entries()) {
+    if (task.status === 'running' && task.outputFile) {
+      try {
+        // 检查文件是否存在
+        let fileExists = false;
+        let currentFileSize = 0;
+        let actualFilePath = task.outputFile;
+        
+        // 直接检查指定文件
+        if (fs.existsSync(task.outputFile)) {
+          fileExists = true;
+          currentFileSize = fs.statSync(task.outputFile).size;
+        } else {
+          // 尝试查找匹配的文件名（不包含扩展名）
+          const dir = path.dirname(task.outputFile);
+          if (fs.existsSync(dir)) {
+            const baseNameWithoutExt = path.basename(task.outputFile, path.extname(task.outputFile));
+            const files = fs.readdirSync(dir);
+            const matchingFile = files.find(file => 
+              path.basename(file, path.extname(file)) === baseNameWithoutExt
+            );
+            
+            if (matchingFile) {
+              actualFilePath = path.join(dir, matchingFile);
+              fileExists = true;
+              currentFileSize = fs.statSync(actualFilePath).size;
+            }
+          }
+        }
+        
+        // 如果文件存在且大小已变化，则更新
+        if (fileExists && (task.lastKnownFileSize === undefined || task.lastKnownFileSize !== currentFileSize)) {
+          // 保存当前文件大小
+          task.lastKnownFileSize = currentFileSize;
+          task.fileSize = currentFileSize;
+          
+          // 使用格式化文件大小的辅助函数
+          const formattedSize = formatFileSize(currentFileSize);
+          
+          // 向所有订阅该任务的客户端发送文件大小更新消息
+          for (const [ws, subscribedTaskId] of wsConnections.entries()) {
+            if (subscribedTaskId === taskId && ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({
+                type: 'file_size_update',
+                taskId,
+                fileSize: currentFileSize,
+                formattedSize,
+                filePath: actualFilePath
+              }));
+            }
+          }
+          
+          // 更新数据库中的任务信息
+          updateTaskFileSize(taskId, currentFileSize).catch(err => {
+            console.error(`更新任务 ${taskId} 的文件大小到数据库失败:`, err);
+          });
+          
+          console.log(`任务 ${taskId} 文件大小已更新: ${formattedSize}, 路径: ${actualFilePath}`);
+        }
+      } catch (error) {
+        console.error(`更新任务 ${taskId} 的文件大小失败:`, error);
+      }
+    }
+  }
+}, FILE_SIZE_UPDATE_INTERVAL);
+
+// 更新任务文件大小到数据库
+async function updateTaskFileSize(taskId, fileSize) {
+  try {
+    const taskRef = db.collection('tasks').doc(taskId);
+    await taskRef.update({
+      fileSize: fileSize,
+      lastUpdated: new Date().toISOString()
+    });
+    return true;
+  } catch (error) {
+    console.error(`更新任务 ${taskId} 的文件大小到数据库失败:`, error);
+    return false;
+  }
+}
+
+// 格式化文件大小的辅助函数
+function formatFileSize(size) {
+  if (size < 1024) {
+    return `${size} B`;
+  } else if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(2)} KB`;
+  } else if (size < 1024 * 1024 * 1024) {
+    return `${(size / (1024 * 1024)).toFixed(2)} MB`;
+  } else {
+    return `${(size / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+  }
+}
 
 // 批量发送消息的函数
 const flushMessages = (taskId) => {
@@ -596,6 +700,51 @@ app.get('/api/tasks', authenticateToken, async (req, res) => {
   try {
     const isAdmin = req.user.role === 'admin';
     const tasks = await getAllTasks(req.user.username, isAdmin);
+    
+    // 处理每个任务，获取实时文件大小
+    for (const task of tasks) {
+      if (task.status === 'running' && task.outputFile) {
+        try {
+          // 检查文件是否存在
+          if (fs.existsSync(task.outputFile)) {
+            // 获取实时文件大小
+            const fileSize = fs.statSync(task.outputFile).size;
+            // 更新任务记录中的文件大小
+            task.fileSize = fileSize;
+            // 异步更新数据库中的文件大小（不等待完成）
+            updateTaskOutput(task.id, task.outputFile, fileSize).catch(console.error);
+          } else {
+            // 尝试查找匹配的文件名（不包含扩展名）
+            const dir = path.dirname(task.outputFile);
+            const baseNameWithoutExt = path.basename(task.outputFile, path.extname(task.outputFile));
+            
+            try {
+              // 确保目录存在
+              if (fs.existsSync(dir)) {
+                const files = fs.readdirSync(dir);
+                // 查找匹配的文件名
+                const matchingFile = files.find(file => 
+                  path.basename(file, path.extname(file)) === baseNameWithoutExt
+                );
+                
+                if (matchingFile) {
+                  const actualPath = path.join(dir, matchingFile);
+                  const fileSize = fs.statSync(actualPath).size;
+                  task.fileSize = fileSize;
+                  // 异步更新数据库
+                  updateTaskOutput(task.id, actualPath, fileSize).catch(console.error);
+                }
+              }
+            } catch (err) {
+              console.error(`获取目录内容失败: ${dir}`, err);
+            }
+          }
+        } catch (error) {
+          console.error(`获取任务 ${task.id} 的实时文件大小失败:`, error);
+        }
+      }
+    }
+    
     res.json(tasks);
   } catch (error) {
     console.error('获取任务列表失败:', error);

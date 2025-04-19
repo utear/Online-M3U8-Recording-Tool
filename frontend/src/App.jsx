@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { Layout, Form, Input, Button, Card, Space, Select, Table, Tag, message, Collapse, Switch, InputNumber, Tooltip, Modal, DatePicker, Menu, Dropdown } from 'antd'
+import { Layout, Form, Input, Button, Card, Space, Select, Table, Tag, message, Collapse, Switch, InputNumber, Tooltip, Modal, DatePicker, Menu, Dropdown, Tabs } from 'antd'
 import dayjs from 'dayjs'
 import {
   DesktopOutlined,
@@ -17,7 +17,10 @@ import {
   SendOutlined,
   PlaySquareOutlined,
   DashboardOutlined,
+  AppstoreAddOutlined,
 } from '@ant-design/icons'
+import BatchRecording from './components/BatchRecording'
+import TaskGroups from './components/TaskGroups'
 import axios from 'axios'
 import './App.css'
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
@@ -36,17 +39,33 @@ const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3002'
 // 配置axios默认baseURL
 axios.defaults.baseURL = API_BASE_URL;
 
+// 上次刷新token的时间
+let lastTokenRefresh = 0;
+// 刷新间隔，防止频繁调用API，至少5分钟刷新一次
+const TOKEN_REFRESH_INTERVAL = 5 * 60 * 1000; // 5分钟
+
 // Token刷新函数
 const refreshToken = async () => {
   try {
     const token = localStorage.getItem('token');
     if (!token) return;
 
+    // 检查是否需要刷新
+    const now = Date.now();
+    if (now - lastTokenRefresh < TOKEN_REFRESH_INTERVAL) {
+      console.log('距离上次刷新时间小于5分钟，跳过刷新');
+      return token;
+    }
+
+    console.log('开始刷新token...');
+    lastTokenRefresh = now;
+
     const response = await axios.post('/api/auth/refresh-token', {}, {
       headers: { Authorization: `Bearer ${token}` }
     });
 
     if (response.data.token) {
+      console.log('token刷新成功');
       localStorage.setItem('token', response.data.token);
       return response.data.token;
     }
@@ -81,8 +100,6 @@ axios.interceptors.request.use(async (config) => {
     } else {
       config.headers.Authorization = `Bearer ${token}`;
     }
-
-    console.log('请求头部已设置:', config.headers);
   } catch (error) {
     console.error('处理token时出错:', error);
     // 出错时仍然设置token
@@ -1119,7 +1136,14 @@ function AppContent() {
 
   // 格式化终端输出
   const formatTerminalOutput = (output) => {
-    return output
+    if (!output || output.length === 0) return '';
+
+    // 限制输出大小，避免处理过大的字符串
+    const MAX_OUTPUT_SIZE = 10000; // 最多处理前10000个字符
+    const processedOutput = output.length > MAX_OUTPUT_SIZE ?
+      output.substring(output.length - MAX_OUTPUT_SIZE) : output;
+
+    return processedOutput
       .replace(/\n\s*\n/g, '\n') // 移除多余的空行
       .replace(/\r\n/g, '\n') // 统一换行符
       .split('\n')
@@ -1156,18 +1180,44 @@ function AppContent() {
 
   // WebSocket连接
   useEffect(() => {
+    // 记录连接尝试次数
+    let connectionAttempts = 0;
+    const MAX_RECONNECT_DELAY = 30000; // 最大重连延迟（30秒）
+
     const connectWebSocket = () => {
-      if (wsRef.current && (wsRef.current.readyState === WebSocket.CONNECTING || wsRef.current.readyState === WebSocket.OPEN)) {
-        return;
+      // 检查现有连接状态
+      if (wsRef.current) {
+        if (wsRef.current.readyState === WebSocket.CONNECTING) {
+          console.log('WebSocket正在连接中，跳过新的连接请求');
+          return;
+        } else if (wsRef.current.readyState === WebSocket.OPEN) {
+          console.log('WebSocket已经连接，跳过新的连接请求');
+          return;
+        } else {
+          // 如果连接已关闭或正在关闭，先清理现有连接
+          console.log('清理现有WebSocket连接');
+          const oldWs = wsRef.current;
+          wsRef.current = null;
+          try {
+            oldWs.onclose = null; // 移除事件处理程序以避免触发重连
+            oldWs.close();
+          } catch (e) {
+            console.error('关闭WebSocket时出错:', e);
+          }
+        }
       }
 
       clearTimeout(reconnectTimeoutRef.current);
+      connectionAttempts++;
 
+      console.log(`尝试连接WebSocket (#${connectionAttempts})...`);
       const ws = new WebSocket(WS_URL);
       wsRef.current = ws;
 
       ws.onopen = () => {
         console.log('WebSocket客户端已连接');
+        connectionAttempts = 0; // 重置重连计数
+
         // 重新订阅所有可见的终端
         const currentTerminals = terminalsRef.current || new Map();
         currentTerminals.forEach((terminal, taskId) => {
@@ -1180,7 +1230,10 @@ function AppContent() {
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          console.log('收到WebSocket消息:', data);
+          // 减少日志输出，只输出非终端输出类型的消息
+          if (data.type !== 'terminal_output' && data.type !== 'progress') {
+            console.log('收到WebSocket消息:', data);
+          }
 
           switch (data.type) {
             case 'terminal_output':
@@ -1193,14 +1246,37 @@ function AppContent() {
                   input: ''
                 };
 
+                // 限制终端输出大小，避免内存泄漏
+                const MAX_TERMINAL_OUTPUT = 50000; // 最多保存50KB的输出
+
                 if (data.type === 'terminal_history') {
                   terminal.output = formatTerminalOutput(data.output);
+                  // 如果历史输出过大，截取最后部分
+                  if (terminal.output.length > MAX_TERMINAL_OUTPUT) {
+                    terminal.output = terminal.output.substring(terminal.output.length - MAX_TERMINAL_OUTPUT);
+                    // 确保从完整的行开始
+                    const firstNewline = terminal.output.indexOf('\n');
+                    if (firstNewline !== -1) {
+                      terminal.output = terminal.output.substring(firstNewline + 1);
+                    }
+                  }
                 } else {
                   const newOutput = formatTerminalOutput(data.output);
                   if (newOutput) {
+                    // 添加新输出
                     terminal.output = terminal.output ?
                       terminal.output + (terminal.output.endsWith('\n') ? '' : '\n') + newOutput :
                       newOutput;
+
+                    // 如果输出过大，截取最后部分
+                    if (terminal.output.length > MAX_TERMINAL_OUTPUT) {
+                      terminal.output = terminal.output.substring(terminal.output.length - MAX_TERMINAL_OUTPUT);
+                      // 确保从完整的行开始
+                      const firstNewline = terminal.output.indexOf('\n');
+                      if (firstNewline !== -1) {
+                        terminal.output = terminal.output.substring(firstNewline + 1);
+                      }
+                    }
                   }
                 }
 
@@ -1222,42 +1298,70 @@ function AppContent() {
             case 'progress':
               // 使用节流函数更新状态
               throttledUpdateTasks(data.taskId, data.status);
-　　 　 　 　 // 更新终端输出，但确保不重复添加相同的输出
-　　 　 　 　 setTerminals(prev => {
-　　　　 　 　 const newTerminals = new Map(prev);
-　　　　 　 　 const terminal = newTerminals.get(data.taskId);
-　　　　 　 　 if (terminal) {
-　　 　 　 　 　 const newOutput = formatTerminalOutput(data.output);
-　　 　 　 　 　 if (newOutput) {
-　　 　 　 　 　 　 // 检查最后一行是否与新输出相同，避免重复
-　　 　 　 　 　 　 const lastLine = terminal.output.split('\n').pop() || '';
-　　 　 　 　 　 　 if (lastLine.trim() !== newOutput.trim()) {
-　　 　 　 　 　 　 　 terminal.output = terminal.output + (terminal.output.endsWith('\n') ? '' : '\n') + newOutput;
-　　 　 　 　 　 　 　 newTerminals.set(data.taskId, { ...terminal });
-　　 　 　 　 　 　 　 terminalsRef.current = newTerminals;
-　　 　 　 　 　 　 }
-　　 　 　 　 　 }
-　　　　 　 　 }
-　　　　 　 　 return newTerminals;
-　　 　 　 　 });
-　　 　 　 　 break;
+              // 更新终端输出，但确保不重复添加相同的输出
+              setTerminals(prev => {
+                const newTerminals = new Map(prev);
+                const terminal = newTerminals.get(data.taskId);
+                if (terminal) {
+                  const newOutput = formatTerminalOutput(data.output);
+                  if (newOutput) {
+                    // 检查最后一行是否与新输出相同，避免重复
+                    const lastLine = terminal.output.split('\n').pop() || '';
+                    if (lastLine.trim() !== newOutput.trim()) {
+                      terminal.output = terminal.output + (terminal.output.endsWith('\n') ? '' : '\n') + newOutput;
+                      newTerminals.set(data.taskId, { ...terminal });
+                      terminalsRef.current = newTerminals;
+                    }
+                  }
+                }
+                return newTerminals;
+              });
+              break;
 
             case 'status':
-　　 　 　 　 setTasks(prevTasks => {
-　　　　 　 　 return prevTasks.map(task => {
-　　 　 　 　 　 if (task.id === data.taskId) {
-　　 　 　 　 　 　 return {
-　　 　 　 　 　 　 　 ...task,
-　　 　 　 　 　 　 　 status: data.status
-　　 　 　 　 　 　 };
-　　 　 　 　 　 }
-　　 　 　 　 　 return task;
-　　　　 　 　 });
-　　 　 　 　 });
-　　 　 　 　 break;
- 　 　 　 }
+              setTasks(prevTasks => {
+                return prevTasks.map(task => {
+                  if (task.id === data.taskId) {
+                    return {
+                      ...task,
+                      status: data.status
+                    };
+                  }
+                  return task;
+                });
+              });
+              break;
+
+            case 'file_size_update':
+              // 处理文件大小更新消息
+              setTasks(prevTasks => {
+                return prevTasks.map(task => {
+                  if (task.id === data.taskId) {
+                    return {
+                      ...task,
+                      fileSize: data.fileSize
+                    };
+                  }
+                  return task;
+                });
+              });
+              
+              // 在终端输出中添加文件大小更新信息
+              setTerminals(prev => {
+                const newTerminals = new Map(prev);
+                const terminal = newTerminals.get(data.taskId);
+                if (terminal) {
+                  const sizeInfo = `\n[系统] 文件大小已更新: ${data.formattedSize}\n`;
+                  terminal.output = terminal.output + sizeInfo;
+                  newTerminals.set(data.taskId, { ...terminal });
+                  terminalsRef.current = newTerminals;
+                }
+                return newTerminals;
+              });
+              break;
+          }
         } catch (error) {
- 　 　 　 console.error('处理WebSocket消息时出错:', error);
+          console.error('处理WebSocket消息时出错:', error);
         }
       };
 
@@ -1267,11 +1371,18 @@ function AppContent() {
 
       ws.onclose = () => {
         if (wsRef.current === ws) {
- 　 　 　 console.log('WebSocket客户端已断开');
- 　 　 　 wsRef.current = null;
- 　 　 　 // 标记所有终端为未订阅
- 　 　 　 subscribedTasksRef.current.clear();
- 　 　 　 reconnectTimeoutRef.current = setTimeout(connectWebSocket, 5000);
+          console.log('WebSocket客户端已断开');
+          wsRef.current = null;
+          // 标记所有终端为未订阅
+          subscribedTasksRef.current.clear();
+
+          // 使用指数退避策略进行重连
+          const baseDelay = 1000; // 基础延迟1秒
+          const maxDelay = MAX_RECONNECT_DELAY; // 最大延迟30秒
+          const delay = Math.min(baseDelay * Math.pow(1.5, Math.min(connectionAttempts, 10)), maxDelay);
+
+          console.log(`将在 ${delay/1000} 秒后尝试重新连接...`);
+          reconnectTimeoutRef.current = setTimeout(connectWebSocket, delay);
         }
       };
     };
@@ -1613,6 +1724,61 @@ function AppContent() {
     return () => clearInterval(interval);
   }, [fetchTasks]);
 
+  // 监听切换到批量录制选项卡的事件
+  useEffect(() => {
+    const handleSwitchToBatchRecording = (event) => {
+      // 切换到录制页面
+      setSelectedKey('1');
+
+      // 等待页面渲染完成后再设置批量录制选项卡
+      setTimeout(() => {
+        // 找到批量录制选项卡并点击
+        const batchTab = document.querySelector('.ant-tabs-tab[data-node-key="batch"]');
+        if (batchTab) {
+          batchTab.click();
+
+          // 设置批量录制表单的URL - 使用React状态和form API而不是直接DOM操作
+          setTimeout(() => {
+            // 直接使用form设置字段值
+            form.setFieldsValue({
+              urls: event.detail.urls
+            });
+
+            // 检查是否有批量录制组件的handleUrlsChange函数
+            // 触发全局事件，让批量录制组件捕获新的URL值
+            window.dispatchEvent(new CustomEvent('batchUrlsUpdated', {
+              detail: { urls: event.detail.urls }
+            }));
+            
+            // 备份：如果form API方式失败，仍然尝试DOM操作方式
+            const batchForm = document.querySelector('form');
+            if (batchForm) {
+              const urlsTextarea = batchForm.querySelector('textarea[placeholder="请输入视频流地址，每行一个"]');
+              if (urlsTextarea) {
+                // 设置文本框的值
+                urlsTextarea.value = event.detail.urls;
+
+                // 触发变化事件，使得React感知到值的变化
+                const inputEvent = new Event('input', { bubbles: true });
+                urlsTextarea.dispatchEvent(inputEvent);
+
+                // 触发变化事件，使得Form感知到值的变化
+                const changeEvent = new Event('change', { bubbles: true });
+                urlsTextarea.dispatchEvent(changeEvent);
+              }
+            }
+          }, 100);
+        }
+      }, 100);
+    };
+
+    window.addEventListener('switchToBatchRecording', handleSwitchToBatchRecording);
+
+    return () => {
+      window.removeEventListener('switchToBatchRecording', handleSwitchToBatchRecording);
+    };
+  }, [form]); // 添加form作为依赖
+
   const [selectedKey, setSelectedKey] = useState('1');
   const [collapsed, setCollapsed] = useState(false);
   const items = [
@@ -1721,45 +1887,71 @@ function AppContent() {
             onValuesChange={handleFormValuesChange}
           >
             {selectedKey === '1' && (
-              <div>
-                <Form.Item
-                  name="url"
-                  label={
-                    <Tooltip title="支持m3u/m3u8/视频流地址">
-                      <Space>
-                        视频流地址
-                        <QuestionCircleOutlined />
-                      </Space>
-                    </Tooltip>
-                  }
-                  rules={[{ required: true, message: '请输入视频流地址' }]}
-                  className="url-input"
-                >
-                  <Input.TextArea
-                    placeholder="请输入视频流地址"
-                    autoSize={{ minRows: 2, maxRows: 4 }}
-                  />
-                </Form.Item>
+              <Tabs
+                defaultActiveKey="single"
+                items={[
+                  {
+                    key: 'single',
+                    label: (
+                      <span>
+                        <PlayCircleOutlined />
+                        单个录制
+                      </span>
+                    ),
+                    children: (
+                      <div>
+                        <Form.Item
+                          name="url"
+                          label={
+                            <Tooltip title="支持m3u/m3u8/视频流地址">
+                              <Space>
+                                视频流地址
+                                <QuestionCircleOutlined />
+                              </Space>
+                            </Tooltip>
+                          }
+                          rules={[{ required: true, message: '请输入视频流地址' }]}
+                          className="url-input"
+                        >
+                          <Input.TextArea
+                            placeholder="请输入视频流地址"
+                            autoSize={{ minRows: 2, maxRows: 4 }}
+                          />
+                        </Form.Item>
 
-                <Collapse
-                  ghost
-                  className="settings-collapse"
-                  defaultActiveKey={['basic']}
-                  items={getCollapseItems()}
-                />
+                        <Collapse
+                          ghost
+                          className="settings-collapse"
+                          defaultActiveKey={['basic']}
+                          items={getCollapseItems()}
+                        />
 
-                <Form.Item className="submit-button">
-                  <Button
-                    type="primary"
-                    htmlType="submit"
-                    loading={loading}
-                    icon={<PlayCircleOutlined />}
-                    size="large"
-                  >
-                    开始录制
-                  </Button>
-                </Form.Item>
-              </div>
+                        <Form.Item className="submit-button">
+                          <Button
+                            type="primary"
+                            htmlType="submit"
+                            loading={loading}
+                            icon={<PlayCircleOutlined />}
+                            size="large"
+                          >
+                            开始录制
+                          </Button>
+                        </Form.Item>
+                      </div>
+                    ),
+                  },
+                  {
+                    key: 'batch',
+                    label: (
+                      <span>
+                        <AppstoreAddOutlined />
+                        批量录制
+                      </span>
+                    ),
+                    children: <BatchRecording RECORDING_OPTIONS={RECORDING_OPTIONS} fetchTasks={fetchTasks} form={form} />,
+                  },
+                ]}
+              />
             )}
             {selectedKey === '2' && (
               <Form.Item
@@ -1781,6 +1973,13 @@ function AppContent() {
                   pagination={false}
                 />
               </Card>
+              <TaskGroups
+                fetchTasks={fetchTasks}
+                openConsole={openConsole}
+                viewHistory={viewHistory}
+                handleDownload={handleDownload}
+                getStatusTag={getStatusTag}
+              />
               {renderTerminals()}
               {renderHistoryModal()}
             </>
