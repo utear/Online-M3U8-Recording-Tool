@@ -52,7 +52,35 @@
 
 ## 快速开始
 
-### 安装
+### 一键部署（推荐）
+
+1. 克隆项目：
+```bash
+git clone https://github.com/Asheblog/N_m3u8DL-RE-web.git
+cd N_m3u8DL-RE-web
+```
+
+2. 运行一键部署脚本：
+```bash
+# Windows系统
+node setup.js
+
+# Linux/macOS系统
+chmod +x setup.js
+./setup.js
+```
+
+3. 按照提示进行配置：
+   - 设置管理员账户名和密码
+   - 配置端口信息
+   - 下载N_m3u8DL-RE可执行文件（如果尚未下载）
+   - 自动安装前后端依赖
+   - 自动创建必要的目录和配置文件
+   - 启动服务
+
+4. 访问：`http://本机IP:前端端口号`
+
+### 手动安装
 
 1. 克隆项目：
 ```bash
