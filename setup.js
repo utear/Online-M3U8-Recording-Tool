@@ -457,8 +457,52 @@ async function main() {
     });
   });
   
+  // CORS域名配置
+  let customDomains = [];
+  let addCustomDomain = false;
+  
+  await new Promise((resolve) => {
+    rl.question(`\n是否需要添加自定义域名到CORS配置？(y/n, 默认: n): `, (answer) => {
+      if (answer.trim().toLowerCase() === 'y') {
+        addCustomDomain = true;
+      }
+      resolve();
+    });
+  });
+  
+  if (addCustomDomain) {
+    console.log('\n请输入需要添加的域名 (包含协议和端口，如http://example.com:3005)');
+    console.log('多个域名请用逗号分隔，输入空行结束');
+    
+    let inputDomains = '';
+    await new Promise((resolve) => {
+      rl.question('域名: ', (answer) => {
+        inputDomains = answer.trim();
+        resolve();
+      });
+    });
+    
+    if (inputDomains) {
+      customDomains = inputDomains.split(',').map(domain => domain.trim());
+      console.log(`已添加以下域名到CORS配置:`);
+      customDomains.forEach(domain => console.log(`- ${domain}`));
+    }
+  }
+  
+  // 基本CORS配置
+  let corsOrigins = [
+    `http://localhost:${frontendPort}`,
+    `http://127.0.0.1:${frontendPort}`,
+    `http://${localIp}:${frontendPort}`
+  ];
+  
+  // 合并自定义域名
+  if (customDomains.length > 0) {
+    corsOrigins = [...corsOrigins, ...customDomains];
+  }
+  
   // 创建后端环境变量文件
-  const backendEnv = `PORT=${backendPort}\nHOST=0.0.0.0\nWS_PORT=${wsPort}\nJWT_SECRET=your-secret-key\nTOKEN_EXPIRE=24h`;
+  const backendEnv = `PORT=${backendPort}\nHOST=0.0.0.0\nWS_PORT=${wsPort}\nJWT_SECRET=your-secret-key\nTOKEN_EXPIRE=24h\n# CORS 配置，多个域名使用逗号分隔\nCORS_ALLOWED_ORIGINS=${corsOrigins.join(',')}`;
   createEnvFile(path.join(process.cwd(), 'backend', '.env'), backendEnv);
   
   // 创建前端环境变量文件

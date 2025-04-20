@@ -37,7 +37,24 @@ const wsPort = process.env.WS_PORT || 3002;
 const processEnv = process.env;
 
 // 中间件配置
-app.use(cors());
+app.use(cors({
+  origin: function(origin, callback) {
+    // 从环境变量获取允许的域名列表
+    const allowedOriginsStr = process.env.CORS_ALLOWED_ORIGINS || 'http://localhost:3005';
+    const allowedOrigins = allowedOriginsStr.split(',').map(origin => origin.trim());
+    
+    // 允许没有origin的请求通过（比如来自移动应用或Postman的请求）
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1 || origin.includes('allio.cn')) {
+      callback(null, true);
+    } else {
+      callback(new Error('CORS policy violation'));
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+}));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 

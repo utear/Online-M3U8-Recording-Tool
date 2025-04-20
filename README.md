@@ -133,6 +133,12 @@ npm install
 ```bash
 PORT=3001
 HOST=0.0.0.0  # 使用 0.0.0.0 允许外部访问
+WS_PORT=3002  # WebSocket服务端口
+JWT_SECRET=your-secret-key  # JWT密钥，请修改为随机字符串
+TOKEN_EXPIRE=24h  # Token过期时间
+
+# CORS配置，指定允许访问的源（域名），多个源用逗号分隔
+CORS_ALLOWED_ORIGINS=http://localhost:3005,http://your-domain.com:3005
 ```
 
 2. 前端配置 (`frontend/.env`):
@@ -389,6 +395,14 @@ const adminUser = {
 - 修复文件下载权限验证问题
 - 优化后台日志输出，避免信息刷屏
 - 修复下载按钮点击后没有即时反馈的问题
+
+### 2024-05-16
+- 修复了CORS跨域问题，允许allio.cn域名访问后端API
+- 优化了CORS配置方案，移至.env文件中管理
+- 改进了跨域请求安全性，支持通过环境变量控制
+- 更新了setup.js脚本，自动配置CORS环境变量
+- 更新了.env.example文件，添加CORS配置示例
+- 增强了一键部署脚本，支持交互式添加自定义域名到CORS配置
 
 ## 已知问题
 
