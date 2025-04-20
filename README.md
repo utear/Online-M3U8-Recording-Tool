@@ -396,6 +396,18 @@ const adminUser = {
 - 优化后台日志输出，避免信息刷屏
 - 修复下载按钮点击后没有即时反馈的问题
 
+### 2024-05-17
+- 全面修复了生产环境下CORS跨域问题，解决了“Access-Control-Allow-Origin”头部缺失的问题
+- 增强了CORS配置，添加了credentials、exposedHeaders和optionsSuccessStatus选项
+- 优化了OPTIONS预检请求处理，添加了详细日志输出便于调试
+- 扩展了allowedHeaders配置，增加了'Accept'和'Origin'头部支持
+- 修改了后端监听地址为0.0.0.0，确保可以接受所有外部连接
+- 完善了CORS域名配置，增加了WebSocket协议支持
+- 优化了前端环境变量配置，确保使用正确的域名访问后端API
+- 更新了setup.js一键部署脚本，增强了CORS配置的生成逻辑
+- 完善了环境变量文件的注释，提供了更清晰的配置指导
+- 优化了域名处理逻辑，确保正确生成HTTP和WebSocket协议的URL
+
 ### 2024-05-16
 - 修复了CORS跨域问题，允许allio.cn域名访问后端API
 - 优化了CORS配置方案，移至.env文件中管理

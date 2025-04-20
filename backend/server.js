@@ -42,19 +42,33 @@ app.use(cors({
     // 从环境变量获取允许的域名列表
     const allowedOriginsStr = process.env.CORS_ALLOWED_ORIGINS || 'http://localhost:3005';
     const allowedOrigins = allowedOriginsStr.split(',').map(origin => origin.trim());
-    
+
     // 允许没有origin的请求通过（比如来自移动应用或Postman的请求）
     if (!origin) return callback(null, true);
-    
+
+    // 检查是否在允许列表中，或者是否包含allio.cn域名
     if (allowedOrigins.indexOf(origin) !== -1 || origin.includes('allio.cn')) {
       callback(null, true);
     } else {
+      console.log(`CORS请求被拒绝: ${origin} 不在允许列表中`);
+      console.log(`当前允许的域名: ${allowedOrigins.join(', ')}`);
       callback(new Error('CORS policy violation'));
     }
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['Content-Length', 'Content-Type'],
+  credentials: true,
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 }));
+
+// 添加CORS预检请求的日志
+app.options('*', cors(), (req, res) => {
+  console.log(`收到OPTIONS预检请求: ${req.method} ${req.url}`);
+  console.log(`Origin: ${req.headers.origin}`);
+  res.status(204).end();
+});
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
@@ -361,7 +375,7 @@ setInterval(() => {
         let fileExists = false;
         let currentFileSize = 0;
         let actualFilePath = task.outputFile;
-        
+
         // 直接检查指定文件
         if (fs.existsSync(task.outputFile)) {
           fileExists = true;
@@ -372,10 +386,10 @@ setInterval(() => {
           if (fs.existsSync(dir)) {
             const baseNameWithoutExt = path.basename(task.outputFile, path.extname(task.outputFile));
             const files = fs.readdirSync(dir);
-            const matchingFile = files.find(file => 
+            const matchingFile = files.find(file =>
               path.basename(file, path.extname(file)) === baseNameWithoutExt
             );
-            
+
             if (matchingFile) {
               actualFilePath = path.join(dir, matchingFile);
               fileExists = true;
@@ -383,16 +397,16 @@ setInterval(() => {
             }
           }
         }
-        
+
         // 如果文件存在且大小已变化，则更新
         if (fileExists && (task.lastKnownFileSize === undefined || task.lastKnownFileSize !== currentFileSize)) {
           // 保存当前文件大小
           task.lastKnownFileSize = currentFileSize;
           task.fileSize = currentFileSize;
-          
+
           // 使用格式化文件大小的辅助函数
           const formattedSize = formatFileSize(currentFileSize);
-          
+
           // 向所有订阅该任务的客户端发送文件大小更新消息
           for (const [ws, subscribedTaskId] of wsConnections.entries()) {
             if (subscribedTaskId === taskId && ws.readyState === WebSocket.OPEN) {
@@ -405,12 +419,12 @@ setInterval(() => {
               }));
             }
           }
-          
+
           // 更新数据库中的任务信息
           updateTaskFileSize(taskId, currentFileSize).catch(err => {
             console.error(`更新任务 ${taskId} 的文件大小到数据库失败:`, err);
           });
-          
+
           console.log(`任务 ${taskId} 文件大小已更新: ${formattedSize}, 路径: ${actualFilePath}`);
         }
       } catch (error) {
@@ -717,7 +731,7 @@ app.get('/api/tasks', authenticateToken, async (req, res) => {
   try {
     const isAdmin = req.user.role === 'admin';
     const tasks = await getAllTasks(req.user.username, isAdmin);
-    
+
     // 处理每个任务，获取实时文件大小
     for (const task of tasks) {
       if (task.status === 'running' && task.outputFile) {
@@ -734,16 +748,16 @@ app.get('/api/tasks', authenticateToken, async (req, res) => {
             // 尝试查找匹配的文件名（不包含扩展名）
             const dir = path.dirname(task.outputFile);
             const baseNameWithoutExt = path.basename(task.outputFile, path.extname(task.outputFile));
-            
+
             try {
               // 确保目录存在
               if (fs.existsSync(dir)) {
                 const files = fs.readdirSync(dir);
                 // 查找匹配的文件名
-                const matchingFile = files.find(file => 
+                const matchingFile = files.find(file =>
                   path.basename(file, path.extname(file)) === baseNameWithoutExt
                 );
-                
+
                 if (matchingFile) {
                   const actualPath = path.join(dir, matchingFile);
                   const fileSize = fs.statSync(actualPath).size;
@@ -761,7 +775,7 @@ app.get('/api/tasks', authenticateToken, async (req, res) => {
         }
       }
     }
-    
+
     res.json(tasks);
   } catch (error) {
     console.error('获取任务列表失败:', error);
