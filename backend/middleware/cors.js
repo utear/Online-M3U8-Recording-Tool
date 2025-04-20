@@ -7,7 +7,7 @@ function corsMiddleware(req, res, next) {
   const origin = req.headers.origin;
 
   // 记录请求信息，便于调试
-  console.log(`[CORS] 请求: ${req.method} ${req.url} 来源: ${origin || '未提供'}`);
+  // console.log(`[CORS] 请求: ${req.method} ${req.url} 来源: ${origin || '未提供'}`);
 
   // 对所有请求都设置允许跨域的头部
   // 如果有Origin头部，则使用该值，否则使用*
@@ -19,7 +19,7 @@ function corsMiddleware(req, res, next) {
 
   // 如果是OPTIONS请求，直接返回200
   if (req.method === 'OPTIONS') {
-    console.log(`[CORS] 响应OPTIONS预检请求: ${req.url}`);
+    // console.log(`[CORS] 响应OPTIONS预检请求: ${req.url}`);
     return res.sendStatus(200);
   }
 

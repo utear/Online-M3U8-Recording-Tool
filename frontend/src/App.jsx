@@ -878,11 +878,39 @@ function AppContent() {
       const headers = { Authorization: `Bearer ${token}` };
       console.log('手动设置认证头:', headers);
 
-      const response = await axios.delete(`${API_BASE_URL}/api/tasks/${taskId}`, { headers });
-      console.log('删除任务响应:', response.data);
+      // 添加更多日志输出
+      console.log('当前axios默认配置:', axios.defaults);
+      console.log('当前axios默认headers:', axios.defaults.headers);
 
-      message.success('删除成功');
-      fetchTasks();
+      // 使用更详细的错误处理
+      try {
+        const response = await axios.delete(`${API_BASE_URL}/api/tasks/${taskId}`, { headers });
+        console.log('删除任务响应状态码:', response.status);
+        console.log('删除任务响应数据:', response.data);
+
+        // 添加一个小延迟，确保后端有足够时间处理删除操作
+        setTimeout(() => {
+          message.success('删除成功');
+          fetchTasks();
+        }, 1000);
+      } catch (axiosError) {
+        console.error('Axios错误详情:', axiosError);
+        if (axiosError.response) {
+          // 服务器返回了错误响应
+          console.error('服务器响应状态码:', axiosError.response.status);
+          console.error('服务器响应数据:', axiosError.response.data);
+          message.error(`删除失败: 服务器返回 ${axiosError.response.status} - ${JSON.stringify(axiosError.response.data)}`);
+        } else if (axiosError.request) {
+          // 请求已发送但没有收到响应
+          console.error('请求已发送但没有收到响应:', axiosError.request);
+          message.error('删除失败: 服务器没有响应，请检查网络连接');
+        } else {
+          // 设置请求时发生错误
+          console.error('设置请求时发生错误:', axiosError.message);
+          message.error(`删除失败: ${axiosError.message}`);
+        }
+        throw axiosError; // 重新抛出错误以便外层catch捕获
+      }
     } catch (error) {
       console.error('删除任务失败:', error);
       message.error(`删除失败: ${error.message}`);

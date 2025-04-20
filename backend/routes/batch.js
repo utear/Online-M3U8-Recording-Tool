@@ -346,8 +346,24 @@ async function startRecordingTask(taskId, username, options) {
         await updateTaskStatus(taskId, 'running');
 
         // 生成并保存临时目录路径
-        const saveName = taskOptions['save-name'] || 'output';
-        const tempDirPath = path.join(tmpDir, saveName);
+        // 使用任务ID作为临时目录名称，确保唯一性
+        const tempDirName = taskId;
+        const tempDirPath = path.join(tmpDir, tempDirName);
+
+        // 在命令行参数中添加临时目录参数
+        // 先移除原来的--tmp-dir参数
+        const tmpDirIndex = args.indexOf('--tmp-dir');
+        if (tmpDirIndex !== -1 && tmpDirIndex + 1 < args.length) {
+            args.splice(tmpDirIndex, 2);
+        }
+        // 添加新的临时目录参数
+        args.push('--tmp-dir', tempDirPath);
+
+        // 确保临时目录存在
+        if (!fs.existsSync(tempDirPath)) {
+            fs.mkdirSync(tempDirPath, { recursive: true });
+        }
+
         await updateTaskTempDir(taskId, tempDirPath);
         console.log(`批量任务 ${taskId} 保存临时目录路径:`, tempDirPath);
 
