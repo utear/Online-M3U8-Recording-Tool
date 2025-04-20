@@ -53,7 +53,7 @@ const BatchRecording = ({ RECORDING_OPTIONS, fetchTasks }) => {
       const urlList = initialUrls.split('\n').filter(url => url.trim() !== '');
       setUrls(urlList);
     }
-    
+
     // 添加表单值变化监听器
     const unsubscribe = form.getFieldInstance('urls')?.addEventListener('change', (e) => {
       if (e.target.value) {
@@ -84,7 +84,7 @@ const BatchRecording = ({ RECORDING_OPTIONS, fetchTasks }) => {
         console.log('批量URL已更新:', urlList.length, '个URL');
       }
     };
-    
+
     window.addEventListener('batchUrlsUpdated', handleBatchUrlsUpdated);
 
     return () => {
@@ -100,17 +100,17 @@ const BatchRecording = ({ RECORDING_OPTIONS, fetchTasks }) => {
     // 获取表单中的实际URL
     const formUrlsValue = form.getFieldValue('urls');
     const actualUrls = formUrlsValue ? formUrlsValue.split('\n').filter(url => url.trim() !== '') : [];
-    
+
     // 如果状态和表单不同步，先更新状态
     if (actualUrls.length > 0 && urls.length === 0) {
       setUrls(actualUrls);
     }
-    
+
     if (actualUrls.length === 0) {
       message.warning('请至少输入一个URL');
       return;
     }
-    
+
     setPreviewVisible(true);
   };
 
@@ -119,12 +119,12 @@ const BatchRecording = ({ RECORDING_OPTIONS, fetchTasks }) => {
     // 获取表单中的实际URL
     const formUrlsValue = form.getFieldValue('urls');
     const actualUrls = formUrlsValue ? formUrlsValue.split('\n').filter(url => url.trim() !== '') : [];
-    
+
     // 如果状态和表单不同步，先更新状态
     if (actualUrls.length > 0 && urls.length === 0) {
       setUrls(actualUrls);
     }
-    
+
     if (actualUrls.length === 0) {
       message.warning('请至少输入一个URL');
       return;
@@ -274,8 +274,8 @@ const BatchRecording = ({ RECORDING_OPTIONS, fetchTasks }) => {
               'selection': '流选择设置'
             }[category] || category,
             children: (
-              <div className="options-container">
-                {RECORDING_OPTIONS[category] && RECORDING_OPTIONS[category].map(option => (
+              <div className="form-grid">
+                {RECORDING_OPTIONS[category] && RECORDING_OPTIONS[category].filter(option => option.type === 'input').map(option => (
                   <Form.Item
                     key={option.name}
                     name={option.name}
@@ -290,14 +290,46 @@ const BatchRecording = ({ RECORDING_OPTIONS, fetchTasks }) => {
                     initialValue={option.defaultValue}
                     valuePropName={option.valuePropName || 'value'}
                   >
-                    {option.type === 'input' ? (
-                      <Input placeholder={option.placeholder} />
-                    ) : option.type === 'number' ? (
+                    <Input placeholder={option.placeholder} />
+                  </Form.Item>
+                ))}
+                {RECORDING_OPTIONS[category] && RECORDING_OPTIONS[category].filter(option => option.type === 'switch').map(option => (
+                  <Form.Item
+                    key={option.name}
+                    name={option.name}
+                    label={
+                      <Tooltip title={option.tooltip}>
+                        <Space>
+                          {option.label}
+                          <QuestionCircleOutlined />
+                        </Space>
+                      </Tooltip>
+                    }
+                    initialValue={option.defaultValue}
+                    valuePropName="checked"
+                  >
+                    <Switch defaultChecked={option.defaultValue} />
+                  </Form.Item>
+                ))}
+                {RECORDING_OPTIONS[category] && RECORDING_OPTIONS[category].filter(option => option.type !== 'input' && option.type !== 'switch').map(option => (
+                  <Form.Item
+                    key={option.name}
+                    name={option.name}
+                    label={
+                      <Tooltip title={option.tooltip}>
+                        <Space>
+                          {option.label}
+                          <QuestionCircleOutlined />
+                        </Space>
+                      </Tooltip>
+                    }
+                    initialValue={option.defaultValue}
+                    valuePropName={option.valuePropName || 'value'}
+                  >
+                    {option.type === 'number' ? (
                       <Input type="number" placeholder={option.placeholder} min={option.min} />
                     ) : option.type === 'datetime' ? (
                       <Input type="datetime-local" />
-                    ) : option.type === 'switch' ? (
-                      <Switch defaultChecked={option.defaultValue} />
                     ) : option.type === 'select' ? (
                       <Select placeholder={option.placeholder}>
                         {option.options && option.options.map(value => (

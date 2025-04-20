@@ -772,7 +772,6 @@ app.post('/api/stop-recording/:taskId', authenticateToken, async (req, res) => {
 app.delete('/api/tasks/:taskId', authenticateToken, async (req, res) => {
   console.log(`[${new Date().toLocaleString()}] 收到删除任务请求: ${req.params.taskId}`);
   console.log(`[${new Date().toLocaleString()}] 请求用户: ${req.user.username}, 角色: ${req.user.role}`);
-  console.log(`[${new Date().toLocaleString()}] 请求头部:`, req.headers);
   try {
     const { taskId } = req.params;
     console.log(`[${new Date().toLocaleString()}] 开始删除任务: ${taskId}`);
@@ -792,6 +791,7 @@ app.delete('/api/tasks/:taskId', authenticateToken, async (req, res) => {
     console.log(`[${new Date().toLocaleString()}] 获取到任务信息:`, {
       taskId: taskInfo.id,
       outputFile: taskInfo.outputFile,
+      tempDir: taskInfo.tempDir,
       status: taskInfo.status
     });
 
@@ -799,42 +799,41 @@ app.delete('/api/tasks/:taskId', authenticateToken, async (req, res) => {
     const task = activeTasks.get(taskId);
     if (task && task.process) {
       console.log(`[${new Date().toLocaleString()}] 停止运行中的进程: ${taskId}`);
-      task.process.kill();
+      try {
+        // Windows下使用taskkill强制结束进程树
+        spawn('taskkill', ['/pid', task.process.pid, '/f', '/t']);
+      } catch (killError) {
+        console.error(`[${new Date().toLocaleString()}] 停止进程失败:`, killError);
+        // 尝试使用普通方式结束进程
+        try {
+          task.process.kill();
+        } catch (e) {
+          console.error(`[${new Date().toLocaleString()}] 普通方式结束进程也失败:`, e);
+        }
+      }
       activeTasks.delete(taskId);
       console.log(`[${new Date().toLocaleString()}] 进程已停止并从活动任务中移除`);
     }
 
-    // 从数据库中删除任务记录
-    console.log(`[${new Date().toLocaleString()}] 开始删除数据库记录`);
-    await new Promise((resolve, reject) => {
-      db.run('DELETE FROM tasks WHERE id = ?', [taskId], (err) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
-    console.log(`[${new Date().toLocaleString()}] 任务记录已从数据库删除`);
-
-    await new Promise((resolve, reject) => {
-      db.run('DELETE FROM task_history WHERE taskId = ?', [taskId], (err) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
-    console.log(`[${new Date().toLocaleString()}] 任务历史记录已从数据库删除`);
-
     // 删除下载目录中的文件
     if (taskInfo && taskInfo.outputFile) {
-      // 1. 尝试使用完整路径
-      let downloadPath = taskInfo.outputFile;
-      console.log(`[${new Date().toLocaleString()}] 检查文件路径: ${downloadPath}`);
-      console.log(`[${new Date().toLocaleString()}] 文件是否存在: ${fs.existsSync(downloadPath)}`);
+      // 尝试删除输出文件
+      try {
+        // 1. 尝试使用完整路径
+        let downloadPath = taskInfo.outputFile;
+        console.log(`[${new Date().toLocaleString()}] 检查文件路径: ${downloadPath}`);
 
-      if (!fs.existsSync(downloadPath)) {
-        // 2. 如果完整路径不存在，尝试在downloads目录中查找
-        downloadPath = path.join(__dirname, 'downloads', path.basename(taskInfo.outputFile));
-        console.log(`[${new Date().toLocaleString()}] 尝试备用路径: ${downloadPath}`);
-        console.log(`[${new Date().toLocaleString()}] 备用路径文件是否存在: ${fs.existsSync(downloadPath)}`);
-      }
+        // 检查文件是否存在
+        let fileExists = fs.existsSync(downloadPath);
+        console.log(`[${new Date().toLocaleString()}] 文件是否存在: ${fileExists}`);
+
+        if (!fileExists) {
+          // 2. 如果完整路径不存在，尝试在downloads目录中查找
+          downloadPath = path.join(__dirname, 'downloads', path.basename(taskInfo.outputFile));
+          console.log(`[${new Date().toLocaleString()}] 尝试备用路径: ${downloadPath}`);
+          fileExists = fs.existsSync(downloadPath);
+          console.log(`[${new Date().toLocaleString()}] 备用路径文件是否存在: ${fileExists}`);
+        }
 
       console.log(`[${new Date().toLocaleString()}] 尝试删除下载文件: ${downloadPath}`);
       try {
