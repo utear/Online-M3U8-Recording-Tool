@@ -480,7 +480,7 @@ async function main() {
   });
 
   if (addCustomDomain) {
-    console.log('\n请输入域名（不含协议和端口，如allio.cn）');
+    console.log('\n请输入域名（不含协议和端口，如example.com）');
     console.log('多个域名请用逗号分隔');
 
     let inputDomains = '';

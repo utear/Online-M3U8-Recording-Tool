@@ -36,39 +36,50 @@ const wsPort = process.env.WS_PORT || 3002;
 // 获取系统环境变量
 const processEnv = process.env;
 
-// 中间件配置
-app.use(cors({
-  origin: function(origin, callback) {
-    // 从环境变量获取允许的域名列表
-    const allowedOriginsStr = process.env.CORS_ALLOWED_ORIGINS || 'http://localhost:3005';
-    const allowedOrigins = allowedOriginsStr.split(',').map(origin => origin.trim());
+// 中间件配置 - 使用更简单的CORS配置
 
-    // 允许没有origin的请求通过（比如来自移动应用或Postman的请求）
-    if (!origin) return callback(null, true);
+// 添加自定义CORS头部中间件
+app.use((req, res, next) => {
+  // 从环境变量获取允许的域名列表
+  const allowedOriginsStr = process.env.CORS_ALLOWED_ORIGINS || 'http://localhost:3005';
+  const allowedOrigins = allowedOriginsStr.split(',').map(origin => origin.trim());
 
-    // 检查是否在允许列表中，或者是否包含allio.cn域名
-    if (allowedOrigins.indexOf(origin) !== -1 || origin.includes('allio.cn')) {
-      callback(null, true);
-    } else {
-      console.log(`CORS请求被拒绝: ${origin} 不在允许列表中`);
-      console.log(`当前允许的域名: ${allowedOrigins.join(', ')}`);
-      callback(new Error('CORS policy violation'));
+  // 获取请求的Origin
+  const origin = req.headers.origin;
+
+  // 记录所有请求的详细信息，便于调试
+  console.log(`收到请求: ${req.method} ${req.url}`);
+  console.log(`请求来源: ${origin || '未提供'}`);
+  console.log(`请求头部: ${JSON.stringify(req.headers)}`);
+
+  // 如果请求有Origin头部，并且在允许列表中
+  if (origin && allowedOrigins.includes(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type');
+
+    // 如果是OPTIONS请求，直接返回200
+    if (req.method === 'OPTIONS') {
+      console.log('响应OPTIONS预检请求');
+      return res.status(200).end();
     }
-  },
+  } else if (origin) {
+    console.log(`CORS请求被拒绝: ${origin} 不在允许列表中`);
+    console.log(`当前允许的域名: ${allowedOrigins.join(', ')}`);
+  }
+
+  next();
+});
+
+// 保留cors中间件作为备用
+app.use(cors({
+  origin: true, // 允许所有来源，因为我们已经在上面的中间件中处理了
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
-  exposedHeaders: ['Content-Length', 'Content-Type'],
-  credentials: true,
-  preflightContinue: false,
-  optionsSuccessStatus: 204
+  credentials: true
 }));
-
-// 添加CORS预检请求的日志
-app.options('*', cors(), (req, res) => {
-  console.log(`收到OPTIONS预检请求: ${req.method} ${req.url}`);
-  console.log(`Origin: ${req.headers.origin}`);
-  res.status(204).end();
-});
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 

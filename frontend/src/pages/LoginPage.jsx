@@ -15,14 +15,43 @@ const LoginPage = () => {
   const handleLogin = async (values) => {
     setLoading(true);
     try {
-      const { data } = await axios.post('/api/auth/login', values);
+      console.log('开始发送登录请求，数据:', values);
+      console.log('请求URL:', axios.defaults.baseURL + '/api/auth/login');
+
+      // 使用完整URL进行请求，确保正确处理跨域
+      const apiUrl = import.meta.env.VITE_API_BASE_URL + '/api/auth/login';
+      console.log('完整请求URL:', apiUrl);
+
+      const response = await axios.post('/api/auth/login', values, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        withCredentials: true
+      });
+
+      console.log('登录响应:', response);
+      const { data } = response;
+
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
       axios.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
       message.success('登录成功');
       navigate('/');
     } catch (error) {
-      message.error(error.response?.data?.message || '登录失败');
+      console.error('登录错误:', error);
+      if (error.response) {
+        console.error('HTTP状态码:', error.response.status);
+        console.error('响应数据:', error.response.data);
+        console.error('响应头部:', error.response.headers);
+        message.error(error.response.data?.message || `登录失败 (${error.response.status})`);
+      } else if (error.request) {
+        console.error('请求已发送但未收到响应:', error.request);
+        message.error('服务器无响应，请检查网络连接或联系管理员');
+      } else {
+        console.error('请求配置错误:', error.message);
+        message.error(`登录请求错误: ${error.message}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -31,11 +60,33 @@ const LoginPage = () => {
   const handleRegister = async (values) => {
     setLoading(true);
     try {
-      await axios.post('/api/auth/register', values);
+      console.log('开始发送注册请求，数据:', values);
+      console.log('请求URL:', axios.defaults.baseURL + '/api/auth/register');
+
+      const response = await axios.post('/api/auth/register', values, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        withCredentials: true
+      });
+
+      console.log('注册响应:', response);
       message.success('注册成功，请登录');
       registerForm.resetFields();
     } catch (error) {
-      message.error(error.response?.data?.message || '注册失败');
+      console.error('注册错误:', error);
+      if (error.response) {
+        console.error('HTTP状态码:', error.response.status);
+        console.error('响应数据:', error.response.data);
+        message.error(error.response.data?.message || `注册失败 (${error.response.status})`);
+      } else if (error.request) {
+        console.error('请求已发送但未收到响应:', error.request);
+        message.error('服务器无响应，请检查网络连接或联系管理员');
+      } else {
+        console.error('请求配置错误:', error.message);
+        message.error(`注册请求错误: ${error.message}`);
+      }
     } finally {
       setLoading(false);
     }
