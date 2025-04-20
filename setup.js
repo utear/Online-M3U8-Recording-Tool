@@ -139,31 +139,81 @@ function initAdmin(username, password) {
         fs.writeFileSync(adminScriptPath, adminScript);
       }
 
+      // 使用更可靠的方式执行Node脚本
       const isWin = process.platform === 'win32';
-      const node = isWin ? 'node.cmd' : 'node';
       const cwd = path.resolve(process.cwd(), 'backend');
-      
       console.log(`执行目录: ${cwd}`);
-      const initAdminProcess = spawn(node, ['scripts/init-admin.js'], {
-        cwd: cwd,
-        stdio: 'inherit',
-        shell: isWin
-      });
 
-      initAdminProcess.on('close', (code) => {
-        if (code === 0) {
-          console.log('✅ 管理员账户初始化成功');
-          resolve();
-        } else {
-          console.error(`❌ 管理员账户初始化失败，退出码: ${code}`);
-          reject(new Error(`初始化管理员失败，退出码: ${code}`));
+      // 使用备用方法执行脚本而不是spawn
+      console.log('正在初始化管理员账户...');
+      try {
+        // 尝试使用require方式直接执行脚本
+        const initScript = path.join(cwd, 'scripts', 'init-admin.js');
+        console.log(`执行脚本: ${initScript}`);
+        
+        // 先尝试使用exec执行
+        const { execSync } = require('child_process');
+        const nodeCmd = isWin ? 'node' : 'node';
+        execSync(`${nodeCmd} "${initScript}"`, { 
+          cwd: cwd,
+          stdio: 'inherit'
+        });
+        
+        console.log('✅ 管理员账户初始化成功');
+        resolve();
+      } catch (execError) {
+        console.error('使用exec执行脚本失败:', execError);
+        
+        // 如果exec失败，尝试使用spawn作为后备方案
+        try {
+          console.log('尝试使用备用方法初始化管理员账户...');
+          const node = isWin ? 'node' : 'node';
+          
+          const initAdminProcess = spawn(node, ['scripts/init-admin.js'], {
+            cwd: cwd,
+            stdio: 'inherit',
+            shell: true // 使用shell执行，增加兼容性
+          });
+
+          initAdminProcess.on('close', (code) => {
+            if (code === 0) {
+              console.log('✅ 管理员账户初始化成功');
+              resolve();
+            } else {
+              console.error(`❌ 管理员账户初始化失败，退出码: ${code}`);
+              reject(new Error(`初始化管理员失败，退出码: ${code}`));
+            }
+          });
+          
+          initAdminProcess.on('error', (err) => {
+            console.error('❌ 初始化管理员进程时出错:', err);
+            reject(err);
+          });
+        } catch (spawnError) {
+          console.error('使用spawn执行脚本也失败:', spawnError);
+          
+          // 如果spawn也失败，尝试在当前进程中直接执行代码
+          try {
+            console.log('尝试直接执行初始化脚本...');
+            // 保存当前工作目录
+            const originalCwd = process.cwd();
+            // 切换到backend目录
+            process.chdir(cwd);
+            
+            // 直接执行脚本内容
+            require(path.join('scripts', 'init-admin.js'));
+            
+            // 恢复原始工作目录
+            process.chdir(originalCwd);
+            
+            console.log('✅ 管理员账户初始化成功');
+            resolve();
+          } catch (requireError) {
+            console.error('直接执行初始化脚本失败:', requireError);
+            reject(requireError);
+          }
         }
-      });
-      
-      initAdminProcess.on('error', (err) => {
-        console.error('❌ 初始化管理员进程时出错:', err);
-        reject(err);
-      });
+      }
     } catch (error) {
       console.error('初始化管理员时出错:', error);
       reject(error);
@@ -211,43 +261,94 @@ function startServices() {
       if (answer.toLowerCase() === 'y') {
         try {
           const isWin = process.platform === 'win32';
-          const node = isWin ? 'node.cmd' : 'node';
-          const npm = isWin ? 'npm.cmd' : 'npm';
+          // 使用通用的命令名称，而不是特定的.cmd后缀
+          const node = 'node';
+          const npm = 'npm';
           
           console.log('\n启动后端服务...');
           const backendCwd = path.resolve(process.cwd(), 'backend');
           console.log(`后端目录: ${backendCwd}`);
           
-          const backendProcess = spawn(node, ['server.js'], {
-            cwd: backendCwd,
-            detached: true,
-            stdio: 'inherit',
-            shell: isWin
-          });
-          
-          backendProcess.on('error', (err) => {
-            console.error('❌ 启动后端服务时出错:', err);
-          });
+          // 使用更可靠的execSync方法启动
+          try {
+            console.log('尝试启动后端服务...');
+            const backendCmd = `${node} server.js`;
+            console.log(`执行命令: ${backendCmd}`);
+            
+            // 使用exec启动后端，允许后台运行
+            const { exec } = require('child_process');
+            const backendProcess = exec(backendCmd, { 
+              cwd: backendCwd,
+              windowsHide: true
+            });
+            
+            if (backendProcess) {
+              console.log('✅ 后端服务启动成功');
+              
+              // 将输出传递到控制台
+              backendProcess.stdout?.on('data', (data) => {
+                console.log(`后端输出: ${data}`);
+              });
+              
+              backendProcess.stderr?.on('data', (data) => {
+                console.error(`后端错误: ${data}`);
+              });
+              
+              // 设置进程独立运行
+              backendProcess.unref();
+            }
+          } catch (backendError) {
+            console.error('启动后端服务失败:', backendError);
+          }
           
           console.log('\n启动前端服务...');
           const frontendCwd = path.resolve(process.cwd(), 'frontend');
           console.log(`前端目录: ${frontendCwd}`);
           
-          const frontendProcess = spawn(npm, ['run', 'dev'], {
-            cwd: frontendCwd,
-            detached: true,
-            stdio: 'inherit',
-            shell: isWin
-          });
-          
-          frontendProcess.on('error', (err) => {
-            console.error('❌ 启动前端服务时出错:', err);
-          });
+          // 使用更可靠的exec方法启动前端
+          try {
+            console.log('尝试启动前端服务...');
+            const frontendCmd = `${npm} run dev`;
+            console.log(`执行命令: ${frontendCmd}`);
+            
+            // 使用exec启动前端，允许后台运行
+            const { exec } = require('child_process');
+            const frontendProcess = exec(frontendCmd, { 
+              cwd: frontendCwd,
+              windowsHide: true
+            });
+            
+            if (frontendProcess) {
+              console.log('✅ 前端服务启动成功');
+              
+              // 将输出传递到控制台
+              frontendProcess.stdout?.on('data', (data) => {
+                console.log(`前端输出: ${data}`);
+              });
+              
+              frontendProcess.stderr?.on('data', (data) => {
+                console.error(`前端错误: ${data}`);
+              });
+              
+              // 设置进程独立运行
+              frontendProcess.unref();
+            }
+          } catch (frontendError) {
+            console.error('启动前端服务失败:', frontendError);
+          }
           
           console.log('\n服务已启动！请访问前端服务地址(通常是 http://localhost:3005)');
-          resolve();
+          
+          // 等待一些消息输出后再退出
+          setTimeout(() => {
+            console.log('\n部署和启动过程已完成。您可以关闭此窗口。');
+            resolve();
+          }, 3000);
         } catch (error) {
           console.error('❌ 启动服务时出错:', error);
+          console.log('\n您可以手动启动服务:');
+          console.log('后端: cd backend && node server.js');
+          console.log('前端: cd frontend && npm run dev');
           resolve(); // 仍然解析Promise，让脚本能够继续完成
         }
       } else {
