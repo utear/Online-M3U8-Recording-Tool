@@ -44,3 +44,6 @@ backend/data/users.db
 *.tmp
 *.ts
 *.ts.tmp
+sync-config.js
+sync-from-github.js
+sync-readme.md
