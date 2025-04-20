@@ -38,25 +38,84 @@ function createEnvFile(filePath, content) {
   console.log(`创建配置文件: ${filePath}`);
 }
 
+// 备用安装方法，使用exec替代spawn
+function fallbackInstall(dir) {
+  return new Promise((resolve, reject) => {
+    console.log(`\n尝试使用备用方法安装 ${dir} 依赖...`);
+    const isWin = process.platform === 'win32';
+    const cwd = path.resolve(process.cwd(), dir);
+    const command = isWin ? 'npm.cmd install' : 'npm install';
+    
+    const child = require('child_process').exec(command, { cwd: cwd }, (error, stdout, stderr) => {
+      if (error) {
+        console.error(`❌ 备用安装方法也失败: ${error.message}`);
+        console.error(`命令: ${command}`);
+        console.error(`目录: ${cwd}`);
+        reject(error);
+        return;
+      }
+      console.log(`✅ ${dir} 依赖安装成功 (备用方法)`);
+      resolve();
+    });
+    
+    // 实时输出命令结果
+    child.stdout.on('data', (data) => {
+      process.stdout.write(data);
+    });
+    
+    child.stderr.on('data', (data) => {
+      process.stderr.write(data);
+    });
+  });
+}
+
 // 安装依赖
 async function installDependencies(dir) {
   console.log(`\n正在安装 ${dir} 的依赖，这可能需要几分钟...`);
-  return new Promise((resolve, reject) => {
-    const npmInstall = spawn(/^win/.test(process.platform) ? 'npm.cmd' : 'npm', ['install'], {
-      cwd: path.join(process.cwd(), dir),
-      stdio: 'inherit'
-    });
+  try {
+    return new Promise((resolve, reject) => {
+      // 修复Windows环境下的命令执行问题
+      const isWin = process.platform === 'win32';
+      const npm = isWin ? 'npm.cmd' : 'npm';
+      
+      try {
+        // 使用更安全的路径处理方式
+        const cwd = path.resolve(process.cwd(), dir);
+        console.log(`执行目录: ${cwd}`);
+        
+        const npmInstall = spawn(npm, ['install'], {
+          cwd: cwd,
+          stdio: 'inherit',
+          shell: isWin // 在Windows上使用shell模式
+        });
 
-    npmInstall.on('close', (code) => {
-      if (code === 0) {
-        console.log(`✅ ${dir} 依赖安装成功`);
-        resolve();
-      } else {
-        console.error(`❌ ${dir} 依赖安装失败`);
-        reject();
+        npmInstall.on('close', (code) => {
+          if (code === 0) {
+            console.log(`✅ ${dir} 依赖安装成功`);
+            resolve();
+          } else {
+            console.error(`❌ ${dir} 依赖安装失败，退出码: ${code}`);
+            // 失败后尝试备用方法
+            fallbackInstall(dir).then(resolve).catch(reject);
+          }
+        });
+        
+        npmInstall.on('error', (err) => {
+          console.error(`❌ 启动npm进程时出错:`, err);
+          // 出错后尝试备用方法
+          fallbackInstall(dir).then(resolve).catch(reject);
+        });
+      } catch (error) {
+        console.error(`❌ 安装依赖过程中发生异常:`, error);
+        // 异常后尝试备用方法
+        fallbackInstall(dir).then(resolve).catch(reject);
       }
     });
-  });
+  } catch (finalError) {
+    console.error('所有安装方法都失败，请尝试手动安装依赖');
+    console.error(`cd ${dir} && npm install`);
+    throw finalError;
+  }
 }
 
 // 初始化管理员账户
@@ -80,10 +139,15 @@ function initAdmin(username, password) {
         fs.writeFileSync(adminScriptPath, adminScript);
       }
 
-      const initAdminProcess = spawn(/^win/.test(process.platform) ? 'node.cmd' : 'node', 
-        ['scripts/init-admin.js'], {
-        cwd: path.join(process.cwd(), 'backend'),
-        stdio: 'inherit'
+      const isWin = process.platform === 'win32';
+      const node = isWin ? 'node.cmd' : 'node';
+      const cwd = path.resolve(process.cwd(), 'backend');
+      
+      console.log(`执行目录: ${cwd}`);
+      const initAdminProcess = spawn(node, ['scripts/init-admin.js'], {
+        cwd: cwd,
+        stdio: 'inherit',
+        shell: isWin
       });
 
       initAdminProcess.on('close', (code) => {
@@ -91,9 +155,14 @@ function initAdmin(username, password) {
           console.log('✅ 管理员账户初始化成功');
           resolve();
         } else {
-          console.error('❌ 管理员账户初始化失败');
-          reject();
+          console.error(`❌ 管理员账户初始化失败，退出码: ${code}`);
+          reject(new Error(`初始化管理员失败，退出码: ${code}`));
         }
+      });
+      
+      initAdminProcess.on('error', (err) => {
+        console.error('❌ 初始化管理员进程时出错:', err);
+        reject(err);
       });
     } catch (error) {
       console.error('初始化管理员时出错:', error);
@@ -140,22 +209,47 @@ function startServices() {
   return new Promise((resolve) => {
     rl.question('\n是否立即启动服务？(y/n): ', (answer) => {
       if (answer.toLowerCase() === 'y') {
-        console.log('\n启动后端服务...');
-        const backendProcess = spawn(/^win/.test(process.platform) ? 'node.cmd' : 'node', ['server.js'], {
-          cwd: path.join(process.cwd(), 'backend'),
-          detached: true,
-          stdio: 'inherit'
-        });
-        
-        console.log('\n启动前端服务...');
-        const frontendProcess = spawn(/^win/.test(process.platform) ? 'npm.cmd' : 'npm', ['run', 'dev'], {
-          cwd: path.join(process.cwd(), 'frontend'),
-          detached: true,
-          stdio: 'inherit'
-        });
-        
-        console.log('\n服务已启动！请访问前端服务地址(通常是 http://localhost:3005)');
-        resolve();
+        try {
+          const isWin = process.platform === 'win32';
+          const node = isWin ? 'node.cmd' : 'node';
+          const npm = isWin ? 'npm.cmd' : 'npm';
+          
+          console.log('\n启动后端服务...');
+          const backendCwd = path.resolve(process.cwd(), 'backend');
+          console.log(`后端目录: ${backendCwd}`);
+          
+          const backendProcess = spawn(node, ['server.js'], {
+            cwd: backendCwd,
+            detached: true,
+            stdio: 'inherit',
+            shell: isWin
+          });
+          
+          backendProcess.on('error', (err) => {
+            console.error('❌ 启动后端服务时出错:', err);
+          });
+          
+          console.log('\n启动前端服务...');
+          const frontendCwd = path.resolve(process.cwd(), 'frontend');
+          console.log(`前端目录: ${frontendCwd}`);
+          
+          const frontendProcess = spawn(npm, ['run', 'dev'], {
+            cwd: frontendCwd,
+            detached: true,
+            stdio: 'inherit',
+            shell: isWin
+          });
+          
+          frontendProcess.on('error', (err) => {
+            console.error('❌ 启动前端服务时出错:', err);
+          });
+          
+          console.log('\n服务已启动！请访问前端服务地址(通常是 http://localhost:3005)');
+          resolve();
+        } catch (error) {
+          console.error('❌ 启动服务时出错:', error);
+          resolve(); // 仍然解析Promise，让脚本能够继续完成
+        }
       } else {
         console.log('\n您可以手动启动服务:');
         console.log('后端: cd backend && node server.js');
