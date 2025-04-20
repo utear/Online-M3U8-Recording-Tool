@@ -247,7 +247,7 @@ const IPTVPage = ({ form }) => {
             <VirtualList
               data={displayChannels}
               height={CONTAINER_HEIGHT}
-              itemHeight={47}
+              itemHeight={70}
               itemKey="url"
               onScroll={onScroll}
             >
@@ -270,15 +270,22 @@ const IPTVPage = ({ form }) => {
                 >
                   <List.Item.Meta
                     title={
-                      <Space>
-                        <span style={{ color: '#262626' }}>{channel.name}</span>
-                        <span style={{ color: '#8c8c8c', fontSize: '12px' }}>({channel.group})</span>
-                        {channel.source && (
-                          <Tag color="blue" style={{ fontSize: '10px', padding: '0 4px', marginLeft: '4px' }}>
-                            {channel.source}
-                          </Tag>
-                        )}
-                      </Space>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '4px' }}>
+                          <span style={{ color: '#262626', fontWeight: 'bold', marginRight: '8px' }}>{channel.name}</span>
+                          <span style={{ color: '#8c8c8c', fontSize: '12px', marginRight: '8px' }}>({channel.group})</span>
+                          {channel.source && (
+                            <Tag color="blue" style={{ fontSize: '11px' }}>
+                              来源: {channel.source}
+                            </Tag>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#999', wordBreak: 'break-all' }}>
+                          <Tooltip title={channel.url}>
+                            <span>地址: {channel.url.length > 60 ? `${channel.url.substring(0, 60)}...` : channel.url}</span>
+                          </Tooltip>
+                        </div>
+                      </div>
                     }
                   />
                 </List.Item>
@@ -368,13 +375,13 @@ const IPTVPage = ({ form }) => {
                   <span style={{ fontWeight: 'bold' }}>{channel.name}</span>
                   <span style={{ color: '#888', marginLeft: '8px' }}>{channel.group}</span>
                   {channel.source && (
-                    <Tag color="blue" style={{ fontSize: '10px', padding: '0 4px', marginLeft: '8px' }}>
-                      {channel.source}
+                    <Tag color="blue" style={{ fontSize: '11px', marginLeft: '8px' }}>
+                      来源: {channel.source}
                     </Tag>
                   )}
                 </div>
-                <div style={{ marginLeft: '24px', color: '#aaa', fontSize: '11px', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {channel.url.substring(0, 80)}...
+                <div style={{ marginLeft: '24px', color: '#666', fontSize: '11px', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span style={{ fontWeight: 'bold' }}>地址:</span> {channel.url}
                 </div>
               </div>
             </List.Item>

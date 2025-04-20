@@ -71,8 +71,26 @@ const SystemSettings = () => {
     try {
       setLoading(true);
       const response = await axios.get('/api/settings');
-      setSettings(response.data);
-      form.setFieldsValue(response.data);
+      const data = response.data;
+
+      // 确保有iptvSources字段
+      if (!data.iptvSources) {
+        data.iptvSources = [
+          {
+            name: '默认IPTV源',
+            url: 'https://github.com/vbskycn/iptv/blob/master/tv/iptv4.m3u',
+            enabled: true
+          }
+        ];
+      }
+
+      setSettings(data);
+      form.setFieldsValue(data);
+
+      // 手动设置iptvSources字段
+      setTimeout(() => {
+        form.setFieldsValue({ iptvSources: JSON.stringify(data.iptvSources) });
+      }, 0);
     } catch (error) {
       message.error('获取系统设置失败');
       console.error('获取系统设置失败:', error);
@@ -90,7 +108,19 @@ const SystemSettings = () => {
   const handleSaveSettings = async (values) => {
     try {
       setLoading(true);
-      await axios.post('/api/settings', values);
+
+      // 删除表单中的iptvSources字段，因为它是字符串形式
+      const { iptvSources: _, ...otherValues } = values;
+
+      // 使用当前状态中的iptvSources数组
+      const dataToSave = {
+        ...otherValues,
+        iptvSources: settings.iptvSources
+      };
+
+      console.log('Saving settings:', dataToSave);
+
+      await axios.post('/api/settings', dataToSave);
       message.success('系统设置已保存');
       fetchSettings();
     } catch (error) {
@@ -148,14 +178,18 @@ const SystemSettings = () => {
       onOk: () => {
         const newSources = [...settings.iptvSources];
         newSources.splice(sourceIndex, 1);
+
+        // 更新状态
         setSettings({
           ...settings,
           iptvSources: newSources
         });
+
+        // 更新表单中的隐藏字段
         form.setFieldsValue({
-          ...settings,
-          iptvSources: newSources
+          iptvSources: JSON.stringify(newSources)
         });
+
         message.success('IPTV源已删除，请点击保存设置以生效');
       }
     });
@@ -165,13 +199,16 @@ const SystemSettings = () => {
   const handleToggleSourceStatus = (sourceIndex) => {
     const newSources = [...settings.iptvSources];
     newSources[sourceIndex].enabled = !newSources[sourceIndex].enabled;
+
+    // 更新状态
     setSettings({
       ...settings,
       iptvSources: newSources
     });
+
+    // 更新表单中的隐藏字段
     form.setFieldsValue({
-      ...settings,
-      iptvSources: newSources
+      iptvSources: JSON.stringify(newSources)
     });
   };
 
@@ -191,14 +228,15 @@ const SystemSettings = () => {
         newSources.push(values);
       }
 
+      // 更新状态
       setSettings({
         ...settings,
         iptvSources: newSources
       });
 
+      // 更新表单中的隐藏字段
       form.setFieldsValue({
-        ...settings,
-        iptvSources: newSources
+        iptvSources: JSON.stringify(newSources)
       });
 
       setSourceModalVisible(false);
@@ -318,6 +356,14 @@ const SystemSettings = () => {
                 showIcon
                 style={{ marginBottom: 16 }}
               />
+
+              {/* 隐藏的iptvSources字段 */}
+              <Form.Item
+                name="iptvSources"
+                hidden
+              >
+                <Input type="hidden" />
+              </Form.Item>
 
               <Form.Item
                 name="iptvUpdateInterval"
