@@ -471,8 +471,8 @@ async function main() {
   });
   
   if (addCustomDomain) {
-    console.log('\n请输入需要添加的域名 (包含协议和端口，如http://example.com:3005)');
-    console.log('多个域名请用逗号分隔，输入空行结束');
+    console.log('\n请输入域名（不含协议和端口，如allio.cn）');
+    console.log('多个域名请用逗号分隔');
     
     let inputDomains = '';
     await new Promise((resolve) => {
@@ -483,9 +483,21 @@ async function main() {
     });
     
     if (inputDomains) {
-      customDomains = inputDomains.split(',').map(domain => domain.trim());
-      console.log(`已添加以下域名到CORS配置:`);
-      customDomains.forEach(domain => console.log(`- ${domain}`));
+      // 拆分域名并为每个域名生成三个不同协议和端口的URL
+      const domains = inputDomains.split(',').map(domain => domain.trim());
+      domains.forEach(domain => {
+        // 为每个域名生成HTTP后端、HTTP前端、WebSocket三个URL
+        const httpBackend = `http://${domain}:${backendPort}`;
+        const httpFrontend = `http://${domain}:${frontendPort}`;
+        const wsBackend = `ws://${domain}:${wsPort}`;
+        
+        customDomains.push(httpBackend, httpFrontend, wsBackend);
+        
+        console.log(`为域名 ${domain} 添加以下地址到CORS配置:`);
+        console.log(`- ${httpBackend} (HTTP后端)`);
+        console.log(`- ${httpFrontend} (HTTP前端)`);
+        console.log(`- ${wsBackend} (WebSocket)`);
+      });
     }
   }
   
@@ -493,7 +505,13 @@ async function main() {
   let corsOrigins = [
     `http://localhost:${frontendPort}`,
     `http://127.0.0.1:${frontendPort}`,
-    `http://${localIp}:${frontendPort}`
+    `http://${localIp}:${frontendPort}`,
+    `http://localhost:${backendPort}`,
+    `http://127.0.0.1:${backendPort}`,
+    `http://${localIp}:${backendPort}`,
+    `ws://localhost:${wsPort}`,
+    `ws://127.0.0.1:${wsPort}`,
+    `ws://${localIp}:${wsPort}`
   ];
   
   // 合并自定义域名
