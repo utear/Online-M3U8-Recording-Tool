@@ -396,6 +396,18 @@ const adminUser = {
 - 优化后台日志输出，避免信息刷屏
 - 修复下载按钮点击后没有即时反馈的问题
 
+### 2024-05-21
+- 彻底解决顶级域名下的CORS跨域问题，特别是在allio.cn域名下的跨域请求
+- 重新设计CORS中间件，使用setHeader方法直接设置头部，避免使用header属性
+- 添加详细的请求头部日志，便于调试CORS问题
+- 确保CORS中间件在所有其他中间件之前运行，避免被其他中间件干扰
+- 优化OPTIONS请求处理，添加详细的日志输出和头部设置
+- 简化前端登录和注册组件，采用更简洁的请求方式：
+  * 首先使用标准fetch API发送请求
+  * 如果fetch失败，尝试使用axios作为备用
+- 优化CORS配置参数，添加preflightContinue和optionsSuccessStatus选项
+- 完善错误处理和日志记录，提供更清晰的错误提示
+
 ### 2024-05-20
 - 彻底解决生产环境下的CORS跨域问题，特别是在allio.cn域名下的跨域请求
 - 重构CORS中间件，采用更直接的方式设置Access-Control-Allow-Origin头部

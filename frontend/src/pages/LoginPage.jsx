@@ -22,37 +22,7 @@ const LoginPage = () => {
       const fullUrl = `${apiBaseUrl}/api/auth/login`;
       console.log('使用完整URL进行请求:', fullUrl);
 
-      // 尝试使用axios进行请求
-      try {
-        console.log('尝试使用axios进行登录...');
-        // 创建一个新的axios实例，专门用于这个请求
-        const axiosInstance = axios.create({
-          baseURL: apiBaseUrl,
-          withCredentials: true,
-          timeout: 10000,
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'Access-Control-Allow-Origin': '*'
-          }
-        });
-
-        const response = await axiosInstance.post('/api/auth/login', values);
-        console.log('使用axios登录成功:', response.data);
-
-        const { data } = response;
-        localStorage.setItem('token', data.token);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        axios.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
-        message.success('登录成功');
-        navigate('/');
-        return; // 成功则直接返回
-      } catch (axiosError) {
-        console.error('axios登录失败:', axiosError);
-        console.log('尝试使用fetch API作为备用方案...');
-      }
-
-      // 如果axios失败，尝试使用fetch API
+      // 使用简单的fetch API发送请求
       const response = await fetch(fullUrl, {
         method: 'POST',
         headers: {
@@ -80,46 +50,32 @@ const LoginPage = () => {
       console.error('登录错误:', error);
       message.error(`登录失败: ${error.message}`);
 
-      // 尝试直接使用XMLHttpRequest作为最后的备用方案
+      // 如果fetch失败，尝试使用axios
       try {
-        console.log('尝试使用XMLHttpRequest进行登录...');
+        console.log('尝试使用axios进行登录...');
         const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
-        const fullUrl = `${apiBaseUrl}/api/auth/login`;
-
-        // 创建一个新的Promise来处理XMLHttpRequest
-        const xhrPromise = new Promise((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open('POST', fullUrl, true);
-          xhr.setRequestHeader('Content-Type', 'application/json');
-          xhr.setRequestHeader('Accept', 'application/json');
-          xhr.withCredentials = true;
-
-          xhr.onload = function() {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              resolve(JSON.parse(xhr.responseText));
-            } else {
-              reject(new Error(`XHR Error: ${xhr.status} ${xhr.statusText}`));
-            }
-          };
-
-          xhr.onerror = function() {
-            reject(new Error('XHR Network Error'));
-          };
-
-          xhr.send(JSON.stringify(values));
+        const response = await axios({
+          method: 'post',
+          url: `${apiBaseUrl}/api/auth/login`,
+          data: values,
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          withCredentials: true
         });
 
-        const data = await xhrPromise;
-        console.log('XHR登录成功:', data);
+        console.log('使用axios登录成功:', response.data);
 
+        const { data } = response;
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
         axios.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
         message.success('登录成功');
         navigate('/');
-      } catch (xhrError) {
-        console.error('XHR登录失败:', xhrError);
-        message.error('所有登录方式均失败，请检查网络或联系管理员');
+      } catch (axiosError) {
+        console.error('axios登录失败:', axiosError);
+        message.error('登录失败，请检查网络或联系管理员');
       }
     } finally {
       setLoading(false);
@@ -136,32 +92,7 @@ const LoginPage = () => {
       const fullUrl = `${apiBaseUrl}/api/auth/register`;
       console.log('使用完整URL进行请求:', fullUrl);
 
-      // 尝试使用axios进行请求
-      try {
-        console.log('尝试使用axios进行注册...');
-        // 创建一个新的axios实例，专门用于这个请求
-        const axiosInstance = axios.create({
-          baseURL: apiBaseUrl,
-          withCredentials: true,
-          timeout: 10000,
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'Access-Control-Allow-Origin': '*'
-          }
-        });
-
-        const response = await axiosInstance.post('/api/auth/register', values);
-        console.log('使用axios注册成功:', response.data);
-        message.success('注册成功，请登录');
-        registerForm.resetFields();
-        return; // 成功则直接返回
-      } catch (axiosError) {
-        console.error('axios注册失败:', axiosError);
-        console.log('尝试使用fetch API作为备用方案...');
-      }
-
-      // 如果axios失败，尝试使用fetch API
+      // 使用简单的fetch API发送请求
       const response = await fetch(fullUrl, {
         method: 'POST',
         headers: {
@@ -185,42 +116,27 @@ const LoginPage = () => {
       console.error('注册错误:', error);
       message.error(`注册失败: ${error.message}`);
 
-      // 尝试直接使用XMLHttpRequest作为最后的备用方案
+      // 如果fetch失败，尝试使用axios
       try {
-        console.log('尝试使用XMLHttpRequest进行注册...');
+        console.log('尝试使用axios进行注册...');
         const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
-        const fullUrl = `${apiBaseUrl}/api/auth/register`;
-
-        // 创建一个新的Promise来处理XMLHttpRequest
-        const xhrPromise = new Promise((resolve, reject) => {
-          const xhr = new XMLHttpRequest();
-          xhr.open('POST', fullUrl, true);
-          xhr.setRequestHeader('Content-Type', 'application/json');
-          xhr.setRequestHeader('Accept', 'application/json');
-          xhr.withCredentials = true;
-
-          xhr.onload = function() {
-            if (xhr.status >= 200 && xhr.status < 300) {
-              resolve(xhr.responseText ? JSON.parse(xhr.responseText) : {});
-            } else {
-              reject(new Error(`XHR Error: ${xhr.status} ${xhr.statusText}`));
-            }
-          };
-
-          xhr.onerror = function() {
-            reject(new Error('XHR Network Error'));
-          };
-
-          xhr.send(JSON.stringify(values));
+        const response = await axios({
+          method: 'post',
+          url: `${apiBaseUrl}/api/auth/register`,
+          data: values,
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          withCredentials: true
         });
 
-        await xhrPromise;
-        console.log('XHR注册成功');
+        console.log('使用axios注册成功:', response.data);
         message.success('注册成功，请登录');
         registerForm.resetFields();
-      } catch (xhrError) {
-        console.error('XHR注册失败:', xhrError);
-        message.error('所有注册方式均失败，请检查网络或联系管理员');
+      } catch (axiosError) {
+        console.error('axios注册失败:', axiosError);
+        message.error('注册失败，请检查网络或联系管理员');
       }
     } finally {
       setLoading(false);

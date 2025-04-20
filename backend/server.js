@@ -39,39 +39,40 @@ const processEnv = process.env;
 // 导入CORS中间件
 const corsMiddleware = require('./middleware/cors');
 
-// 中间件配置
-// 使用自定义CORS中间件
+// 在所有中间件之前应用CORS中间件
+// 这是最重要的一步，确保CORS头部在所有响应中都存在
 app.use(corsMiddleware);
 
-// 配置cors库作为备用
+// 添加OPTIONS请求的全局处理
+// 这个处理器会在所有路由之前捕获OPTIONS请求
+app.options('*', (req, res) => {
+  console.log('[OPTIONS] 收到OPTIONS预检请求:', req.url);
+  console.log('[OPTIONS] 请求头部:', req.headers);
+
+  // 手动设置OPTIONS请求的头部
+  const origin = req.headers.origin;
+  res.setHeader('Access-Control-Allow-Origin', origin || '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Max-Age', '86400');
+
+  // 直接返回200状态码，不需要任何响应体
+  return res.status(200).end();
+});
+
+// 使用cors库作为备用
 const corsOptions = {
-  origin: function (origin, callback) {
-    // 允许所有来源
-    callback(null, true);
-  },
+  origin: true, // 允许所有来源
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
   exposedHeaders: ['Content-Length', 'Content-Type'],
-  maxAge: 86400 // 24小时
+  maxAge: 86400, // 24小时
+  preflightContinue: false,
+  optionsSuccessStatus: 200
 };
 app.use(cors(corsOptions));
-
-// 添加OPTIONS请求的全局处理
-app.options('*', (req, res) => {
-  // 手动设置OPTIONS请求的头部
-  const origin = req.headers.origin;
-  if (origin) {
-    res.header('Access-Control-Allow-Origin', origin);
-  } else {
-    res.header('Access-Control-Allow-Origin', '*');
-  }
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Max-Age', '86400');
-  res.status(200).end();
-});
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
