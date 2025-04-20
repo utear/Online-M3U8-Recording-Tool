@@ -13,7 +13,11 @@ import {
   Typography,
   Alert,
   InputNumber,
-  Select
+  Select,
+  Table,
+  Tag,
+  Tooltip,
+  Modal
 } from 'antd';
 import {
   SaveOutlined,
@@ -21,7 +25,12 @@ import {
   SettingOutlined,
   CloudSyncOutlined,
   DatabaseOutlined,
-  GlobalOutlined
+  GlobalOutlined,
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined
 } from '@ant-design/icons';
 import axios from 'axios';
 
@@ -33,7 +42,13 @@ const SystemSettings = () => {
   const [loading, setLoading] = useState(false);
   const [iptvLoading, setIptvLoading] = useState(false);
   const [settings, setSettings] = useState({
-    iptvSource: 'https://github.com/vbskycn/iptv/blob/master/tv/iptv4.m3u',
+    iptvSources: [
+      {
+        name: '默认IPTV源',
+        url: 'https://github.com/vbskycn/iptv/blob/master/tv/iptv4.m3u',
+        enabled: true
+      }
+    ],
     iptvUpdateInterval: 4,
     useProxy: false,
     proxyHost: '127.0.0.1',
@@ -43,6 +58,12 @@ const SystemSettings = () => {
     maxConcurrentTasks: 5,
     logLevel: 'INFO'
   });
+
+  // IPTV源编辑相关状态
+  const [sourceModalVisible, setSourceModalVisible] = useState(false);
+  const [editingSource, setEditingSource] = useState(null);
+  const [sourceForm] = Form.useForm();
+
   const [form] = Form.useForm();
 
   // 获取系统设置
@@ -94,6 +115,97 @@ const SystemSettings = () => {
     }
   };
 
+  // 打开添加IPTV源对话框
+  const handleAddSource = () => {
+    setEditingSource(null);
+    sourceForm.resetFields();
+    sourceForm.setFieldsValue({
+      name: '',
+      url: '',
+      enabled: true
+    });
+    setSourceModalVisible(true);
+  };
+
+  // 打开编辑IPTV源对话框
+  const handleEditSource = (source) => {
+    setEditingSource(source);
+    sourceForm.setFieldsValue({
+      name: source.name,
+      url: source.url,
+      enabled: source.enabled !== false // 默认为true
+    });
+    setSourceModalVisible(true);
+  };
+
+  // 删除IPTV源
+  const handleDeleteSource = (sourceIndex) => {
+    Modal.confirm({
+      title: '确认删除',
+      content: '确定要删除这个IPTV源吗？删除后需要点击保存设置才会生效。',
+      okText: '确认',
+      cancelText: '取消',
+      onOk: () => {
+        const newSources = [...settings.iptvSources];
+        newSources.splice(sourceIndex, 1);
+        setSettings({
+          ...settings,
+          iptvSources: newSources
+        });
+        form.setFieldsValue({
+          ...settings,
+          iptvSources: newSources
+        });
+        message.success('IPTV源已删除，请点击保存设置以生效');
+      }
+    });
+  };
+
+  // 切换IPTV源启用状态
+  const handleToggleSourceStatus = (sourceIndex) => {
+    const newSources = [...settings.iptvSources];
+    newSources[sourceIndex].enabled = !newSources[sourceIndex].enabled;
+    setSettings({
+      ...settings,
+      iptvSources: newSources
+    });
+    form.setFieldsValue({
+      ...settings,
+      iptvSources: newSources
+    });
+  };
+
+  // 保存IPTV源
+  const handleSaveSource = () => {
+    sourceForm.validateFields().then(values => {
+      const newSources = [...settings.iptvSources];
+
+      if (editingSource) {
+        // 编辑现有源
+        const index = newSources.findIndex(s => s.name === editingSource.name && s.url === editingSource.url);
+        if (index !== -1) {
+          newSources[index] = values;
+        }
+      } else {
+        // 添加新源
+        newSources.push(values);
+      }
+
+      setSettings({
+        ...settings,
+        iptvSources: newSources
+      });
+
+      form.setFieldsValue({
+        ...settings,
+        iptvSources: newSources
+      });
+
+      setSourceModalVisible(false);
+      message.success(`IPTV源已${editingSource ? '更新' : '添加'}，请点击保存设置以生效`);
+    });
+  };
+
   return (
     <Card title="系统设置">
       <Spin spinning={loading}>
@@ -113,13 +225,99 @@ const SystemSettings = () => {
               onFinish={handleSaveSettings}
               initialValues={settings}
             >
-              <Form.Item
-                name="iptvSource"
-                label="IPTV源地址"
-                rules={[{ required: true, message: '请输入IPTV源地址' }]}
-              >
-                <Input placeholder="请输入IPTV源地址" />
-              </Form.Item>
+              {/* IPTV源列表 */}
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <Title level={4}>IPTV源管理</Title>
+                  <Button
+                    type="primary"
+                    icon={<PlusOutlined />}
+                    onClick={handleAddSource}
+                  >
+                    添加IPTV源
+                  </Button>
+                </div>
+
+                <Table
+                  dataSource={settings.iptvSources}
+                  rowKey={(record, index) => index}
+                  pagination={false}
+                  size="small"
+                  columns={[
+                    {
+                      title: '名称',
+                      dataIndex: 'name',
+                      key: 'name',
+                      width: '20%',
+                    },
+                    {
+                      title: '地址',
+                      dataIndex: 'url',
+                      key: 'url',
+                      width: '50%',
+                      ellipsis: true,
+                      render: (text) => (
+                        <Tooltip title={text}>
+                          <span>{text}</span>
+                        </Tooltip>
+                      ),
+                    },
+                    {
+                      title: '状态',
+                      dataIndex: 'enabled',
+                      key: 'enabled',
+                      width: '10%',
+                      render: (enabled) => (
+                        <Tag color={enabled !== false ? 'success' : 'default'}>
+                          {enabled !== false ? '启用' : '禁用'}
+                        </Tag>
+                      ),
+                    },
+                    {
+                      title: '操作',
+                      key: 'action',
+                      width: '20%',
+                      render: (_, record, index) => (
+                        <Space>
+                          <Button
+                            type="text"
+                            icon={record.enabled !== false ? <CloseCircleOutlined /> : <CheckCircleOutlined />}
+                            onClick={() => handleToggleSourceStatus(index)}
+                            size="small"
+                          >
+                            {record.enabled !== false ? '禁用' : '启用'}
+                          </Button>
+                          <Button
+                            type="text"
+                            icon={<EditOutlined />}
+                            onClick={() => handleEditSource(record)}
+                            size="small"
+                          >
+                            编辑
+                          </Button>
+                          <Button
+                            type="text"
+                            danger
+                            icon={<DeleteOutlined />}
+                            onClick={() => handleDeleteSource(index)}
+                            size="small"
+                          >
+                            删除
+                          </Button>
+                        </Space>
+                      ),
+                    },
+                  ]}
+                />
+              </div>
+
+              <Alert
+                message="提示"
+                description="添加多个IPTV源可以获取更多频道。系统会自动合并所有启用的源中的频道并去除重复项。"
+                type="info"
+                showIcon
+                style={{ marginBottom: 16 }}
+              />
 
               <Form.Item
                 name="iptvUpdateInterval"
@@ -195,6 +393,50 @@ const SystemSettings = () => {
                 </Space>
               </Form.Item>
             </Form>
+
+            {/* IPTV源编辑对话框 */}
+            <Modal
+              title={editingSource ? '编辑IPTV源' : '添加IPTV源'}
+              open={sourceModalVisible}
+              onCancel={() => setSourceModalVisible(false)}
+              footer={[
+                <Button key="cancel" onClick={() => setSourceModalVisible(false)}>
+                  取消
+                </Button>,
+                <Button key="submit" type="primary" onClick={handleSaveSource}>
+                  保存
+                </Button>,
+              ]}
+            >
+              <Form
+                form={sourceForm}
+                layout="vertical"
+              >
+                <Form.Item
+                  name="name"
+                  label="名称"
+                  rules={[{ required: true, message: '请输入IPTV源名称' }]}
+                >
+                  <Input placeholder="例如：中国IPTV" />
+                </Form.Item>
+
+                <Form.Item
+                  name="url"
+                  label="地址"
+                  rules={[{ required: true, message: '请输入IPTV源地址' }]}
+                >
+                  <Input placeholder="请输入m3u文件地址" />
+                </Form.Item>
+
+                <Form.Item
+                  name="enabled"
+                  label="状态"
+                  valuePropName="checked"
+                >
+                  <Switch checkedChildren="启用" unCheckedChildren="禁用" />
+                </Form.Item>
+              </Form>
+            </Modal>
           </TabPane>
 
           <TabPane

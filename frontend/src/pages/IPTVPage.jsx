@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Input, List, Button, Space, message, Select, Spin, Radio, Modal, Checkbox } from 'antd';
-import { SearchOutlined, PlayCircleOutlined, AppstoreAddOutlined } from '@ant-design/icons';
+import { Input, List, Button, Space, message, Select, Spin, Radio, Modal, Checkbox, Tag, Tooltip } from 'antd';
+import { SearchOutlined, PlayCircleOutlined, AppstoreAddOutlined, FilterOutlined } from '@ant-design/icons';
 import VirtualList from 'rc-virtual-list';
 import axios from 'axios';
 
@@ -13,6 +13,7 @@ const IPTVPage = ({ form }) => {
   const [searchText, setSearchText] = useState('');
   const [loading, setLoading] = useState(true);
   const [selectedGroup, setSelectedGroup] = useState('all');
+  const [selectedSource, setSelectedSource] = useState('all');
   const [page, setPage] = useState(1);
   const [recordMode, setRecordMode] = useState('single'); // 'single' 或 'batch'
   const [batchModalVisible, setBatchModalVisible] = useState(false);
@@ -26,18 +27,28 @@ const IPTVPage = ({ form }) => {
     return ['all', ...Array.from(groupSet)];
   }, [channels]);
 
+  // 使用useMemo缓存源列表
+  const sources = useMemo(() => {
+    const sourceSet = new Set(channels.filter(channel => channel.source).map(channel => channel.source));
+    return ['all', ...Array.from(sourceSet)];
+  }, [channels]);
+
   // 使用useMemo缓存过滤后的频道列表
   const filteredChannels = useMemo(() => {
     return channels.filter(channel => {
       const matchesSearch = searchText === '' ||
         channel.name.toLowerCase().includes(searchText.toLowerCase()) ||
-        channel.group.toLowerCase().includes(searchText.toLowerCase());
+        channel.group.toLowerCase().includes(searchText.toLowerCase()) ||
+        (channel.source && channel.source.toLowerCase().includes(searchText.toLowerCase()));
 
       const matchesGroup = selectedGroup === 'all' || channel.group === selectedGroup;
 
-      return matchesSearch && matchesGroup;
+      const matchesSource = selectedSource === 'all' ||
+        (channel.source && channel.source === selectedSource);
+
+      return matchesSearch && matchesGroup && matchesSource;
     });
-  }, [channels, searchText, selectedGroup]);
+  }, [channels, searchText, selectedGroup, selectedSource]);
 
   useEffect(() => {
     setLoading(true);
@@ -60,6 +71,11 @@ const IPTVPage = ({ form }) => {
 
   const handleGroupChange = (value) => {
     setSelectedGroup(value);
+    setPage(1);
+  };
+
+  const handleSourceChange = (value) => {
+    setSelectedSource(value);
     setPage(1);
   };
 
@@ -177,7 +193,7 @@ const IPTVPage = ({ form }) => {
         <Select
           value={selectedGroup}
           onChange={handleGroupChange}
-          style={{ width: '200px' }}
+          style={{ width: '180px' }}
           placeholder="选择频道分组"
         >
           {groups.map(group => (
@@ -186,6 +202,21 @@ const IPTVPage = ({ form }) => {
             </Option>
           ))}
         </Select>
+
+        {sources.length > 1 && (
+          <Select
+            value={selectedSource}
+            onChange={handleSourceChange}
+            style={{ width: '180px' }}
+            placeholder="选择IPTV源"
+          >
+            {sources.map(source => (
+              <Option key={source} value={source}>
+                {source === 'all' ? '全部源' : source}
+              </Option>
+            ))}
+          </Select>
+        )}
 
         <Radio.Group
           value={recordMode}
@@ -242,6 +273,11 @@ const IPTVPage = ({ form }) => {
                       <Space>
                         <span style={{ color: '#262626' }}>{channel.name}</span>
                         <span style={{ color: '#8c8c8c', fontSize: '12px' }}>({channel.group})</span>
+                        {channel.source && (
+                          <Tag color="blue" style={{ fontSize: '10px', padding: '0 4px', marginLeft: '4px' }}>
+                            {channel.source}
+                          </Tag>
+                        )}
                       </Space>
                     }
                   />
@@ -331,6 +367,11 @@ const IPTVPage = ({ form }) => {
                   />
                   <span style={{ fontWeight: 'bold' }}>{channel.name}</span>
                   <span style={{ color: '#888', marginLeft: '8px' }}>{channel.group}</span>
+                  {channel.source && (
+                    <Tag color="blue" style={{ fontSize: '10px', padding: '0 4px', marginLeft: '8px' }}>
+                      {channel.source}
+                    </Tag>
+                  )}
                 </div>
                 <div style={{ marginLeft: '24px', color: '#aaa', fontSize: '11px', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {channel.url.substring(0, 80)}...

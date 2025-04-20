@@ -1,5 +1,11 @@
 {
-  "iptvSource": "https://github.com/vbskycn/iptv/blob/master/tv/iptv4.m3u",
+  "iptvSources": [
+    {
+      "name": "默认IPTV源",
+      "url": "https://github.com/vbskycn/iptv/blob/master/tv/iptv4.m3u",
+      "enabled": true
+    }
+  ],
   "iptvUpdateInterval": 4,
   "useProxy": false,
   "proxyHost": "127.0.0.1",

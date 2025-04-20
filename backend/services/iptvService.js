@@ -3,8 +3,8 @@ const fs = require('fs').promises;
 const path = require('path');
 const { HttpsProxyAgent } = require('https-proxy-agent');
 
-const IPTV_URL = 'https://raw.githubusercontent.com/vbskycn/iptv/refs/heads/master/tv/iptv4.m3u';
 const CACHE_FILE = path.join(__dirname, '../data/iptv-list.json');
+const CONFIG_FILE_PATH = path.join(__dirname, '../data', 'config.json');
 const UPDATE_INTERVAL = 4 * 60 * 60 * 1000; // 4 hours in milliseconds
 
 // 配置代理
@@ -18,30 +18,77 @@ class IPTVService {
         this.channels = [];
         this.lastUpdate = 0;
         this.isUpdating = false;
-        
+        this.config = null;
+
         // 创建支持代理的axios实例
-        const proxyUrl = `http://${PROXY_CONFIG.host}:${PROXY_CONFIG.port}`;
-        const httpsAgent = new HttpsProxyAgent(proxyUrl);
-        
-        this.axiosInstance = axios.create({
-            httpsAgent,
+        this.updateAxiosInstance();
+    }
+
+    // 读取配置文件
+    async readConfig() {
+        try {
+            const configData = await fs.readFile(CONFIG_FILE_PATH, 'utf8');
+            this.config = JSON.parse(configData);
+            return this.config;
+        } catch (error) {
+            console.error('读取配置文件失败:', error);
+            // 返回默认配置
+            this.config = {
+                iptvSources: [
+                    {
+                        name: '默认IPTV源',
+                        url: 'https://github.com/vbskycn/iptv/blob/master/tv/iptv4.m3u',
+                        enabled: true
+                    }
+                ],
+                iptvUpdateInterval: 4,
+                useProxy: false,
+                proxyHost: '127.0.0.1',
+                proxyPort: 7890
+            };
+            return this.config;
+        }
+    }
+
+    // 更新axios实例配置
+    updateAxiosInstance() {
+        const axiosConfig = {
             timeout: 10000,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             }
-        });
+        };
+
+        // 如果配置了使用代理，添加代理配置
+        if (this.config && this.config.useProxy) {
+            const proxyHost = this.config.proxyHost || PROXY_CONFIG.host;
+            const proxyPort = this.config.proxyPort || PROXY_CONFIG.port;
+            const proxyUrl = `http://${proxyHost}:${proxyPort}`;
+            axiosConfig.httpsAgent = new HttpsProxyAgent(proxyUrl);
+        }
+
+        this.axiosInstance = axios.create(axiosConfig);
     }
 
     async init() {
         try {
-            // Try to load from cache first
+            // 首先读取配置文件
+            await this.readConfig();
+
+            // 更新axios实例配置
+            this.updateAxiosInstance();
+
+            // 尝试从缓存加载
             await this.loadFromCache();
-            // Update if cache is old or empty
+
+            // 如果缓存过时或为空，更新频道
             if (this.shouldUpdate()) {
                 await this.updateChannels();
             }
-            // Start periodic updates
-            setInterval(() => this.updateChannels(), UPDATE_INTERVAL);
+
+            // 设置定期更新
+            const updateInterval = this.config.iptvUpdateInterval * 60 * 60 * 1000 || UPDATE_INTERVAL;
+            setInterval(() => this.updateChannels(), updateInterval);
         } catch (error) {
             console.error('Error initializing IPTV service:', error);
         }
@@ -67,44 +114,91 @@ class IPTVService {
 
     async updateChannels() {
         if (this.isUpdating) return;
-        
+
         this.isUpdating = true;
         try {
-            console.log('Updating IPTV channels...');
-            const response = await this.axiosInstance.get(IPTV_URL);
-            const data = response.data;
-            const lines = data.split('\n');
-            const channels = [];
+            // 重新读取配置，确保使用最新的配置
+            await this.readConfig();
+            this.updateAxiosInstance();
 
-            for (let i = 0; i < lines.length - 1; i++) {
-                if (lines[i].startsWith('#EXTINF')) {
-                    const info = lines[i];
-                    const url = lines[i + 1];
-                    
-                    const nameMatch = info.match(/tvg-name="([^"]+)"/);
-                    const groupMatch = info.match(/group-title="([^"]+)"/);
-                    const titleMatch = info.match(/,\s*(.+)$/);
+            console.log('Updating IPTV channels from multiple sources...');
 
-                    channels.push({
-                        name: nameMatch ? nameMatch[1] : (titleMatch ? titleMatch[1] : 'Unknown'),
-                        group: groupMatch ? groupMatch[1] : 'Other',
-                        url: url.trim()
-                    });
+            // 获取启用的IPTV源
+            const enabledSources = this.config.iptvSources.filter(source => source.enabled !== false);
+
+            if (enabledSources.length === 0) {
+                console.log('No enabled IPTV sources found');
+                this.isUpdating = false;
+                return;
+            }
+
+            const allChannels = [];
+
+            // 从每个源获取频道
+            for (const source of enabledSources) {
+                try {
+                    console.log(`Fetching channels from source: ${source.name}`);
+
+                    // 处理GitHub URL的特殊情况
+                    let sourceUrl = source.url;
+                    if (sourceUrl.includes('github.com') && sourceUrl.includes('/blob/')) {
+                        // 将GitHub blob URL转换为原始内容URL
+                        sourceUrl = sourceUrl.replace('github.com', 'raw.githubusercontent.com').replace('/blob/', '/');
+                    }
+
+                    const response = await this.axiosInstance.get(sourceUrl);
+                    const data = response.data;
+                    const lines = data.split('\n');
+                    const sourceChannels = [];
+
+                    for (let i = 0; i < lines.length - 1; i++) {
+                        if (lines[i].startsWith('#EXTINF')) {
+                            const info = lines[i];
+                            const url = lines[i + 1];
+
+                            if (!url || url.trim().startsWith('#')) continue; // 跳过无效URL
+
+                            const nameMatch = info.match(/tvg-name="([^"]+)"/);
+                            const groupMatch = info.match(/group-title="([^"]+)"/);
+                            const titleMatch = info.match(/,\s*(.+)$/);
+
+                            sourceChannels.push({
+                                name: nameMatch ? nameMatch[1] : (titleMatch ? titleMatch[1] : 'Unknown'),
+                                group: groupMatch ? groupMatch[1] : 'Other',
+                                url: url.trim(),
+                                source: source.name // 添加源信息
+                            });
+                        }
+                    }
+
+                    console.log(`Found ${sourceChannels.length} channels from source: ${source.name}`);
+                    allChannels.push(...sourceChannels);
+
+                } catch (error) {
+                    console.error(`Error fetching channels from source ${source.name}:`, error);
+                    if (error.response) {
+                        console.error('Response status:', error.response.status);
+                    }
                 }
             }
 
-            this.channels = channels;
+            // 合并所有频道并去重
+            const uniqueUrls = new Set();
+            this.channels = allChannels.filter(channel => {
+                if (uniqueUrls.has(channel.url)) {
+                    return false;
+                }
+                uniqueUrls.add(channel.url);
+                return true;
+            });
+
             this.lastUpdate = Date.now();
 
-            // Save to cache
+            // 保存到缓存
             await this.saveToCache();
-            console.log(`IPTV channels updated successfully, total: ${channels.length} channels`);
+            console.log(`IPTV channels updated successfully, total: ${this.channels.length} channels from ${enabledSources.length} sources`);
         } catch (error) {
             console.error('Error updating IPTV channels:', error);
-            if (error.response) {
-                console.error('Response status:', error.response.status);
-                console.error('Response headers:', error.response.headers);
-            }
         } finally {
             this.isUpdating = false;
         }

@@ -8,7 +8,13 @@ const CONFIG_FILE_PATH = path.join(__dirname, '..', 'data', 'config.json');
 
 // 默认配置
 const DEFAULT_CONFIG = {
-  iptvSource: 'https://github.com/vbskycn/iptv/blob/master/tv/iptv4.m3u',
+  iptvSources: [
+    {
+      name: '默认IPTV源',
+      url: 'https://github.com/vbskycn/iptv/blob/master/tv/iptv4.m3u',
+      enabled: true
+    }
+  ],
   iptvUpdateInterval: 4,
   useProxy: false,
   proxyHost: '127.0.0.1',
@@ -28,7 +34,7 @@ const ensureConfigFile = () => {
       if (!fs.existsSync(configDir)) {
         fs.mkdirSync(configDir, { recursive: true });
       }
-      
+
       // 写入默认配置
       fs.writeFileSync(CONFIG_FILE_PATH, JSON.stringify(DEFAULT_CONFIG, null, 2));
     }
@@ -76,16 +82,29 @@ router.get('/', (req, res) => {
 router.post('/', (req, res) => {
   try {
     const newConfig = req.body;
-    
+
     // 验证必填字段
-    if (!newConfig.iptvSource || !newConfig.downloadPath || !newConfig.tempPath) {
+    if (!newConfig.iptvSources || !Array.isArray(newConfig.iptvSources) ||
+        !newConfig.downloadPath || !newConfig.tempPath) {
       return res.status(400).json({ message: '缺少必填字段' });
     }
-    
+
+    // 验证IPTV源格式
+    for (const source of newConfig.iptvSources) {
+      if (!source.name || !source.url) {
+        return res.status(400).json({ message: 'IPTV源格式不正确，需要名称和地址' });
+      }
+    }
+
     // 合并配置
     const currentConfig = readConfig();
     const mergedConfig = { ...currentConfig, ...newConfig };
-    
+
+    // 兼容旧版本配置，如果有iptvSource字段则删除
+    if (mergedConfig.iptvSource) {
+      delete mergedConfig.iptvSource;
+    }
+
     // 写入配置
     if (writeConfig(mergedConfig)) {
       res.json({ message: '系统设置已更新', config: mergedConfig });
