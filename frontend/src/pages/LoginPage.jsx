@@ -16,22 +16,29 @@ const LoginPage = () => {
     setLoading(true);
     try {
       console.log('开始发送登录请求，数据:', values);
-      console.log('请求URL:', axios.defaults.baseURL + '/api/auth/login');
 
-      // 使用完整URL进行请求，确保正确处理跨域
-      const apiUrl = import.meta.env.VITE_API_BASE_URL + '/api/auth/login';
-      console.log('完整请求URL:', apiUrl);
+      // 尝试使用直接请求而不是相对路径
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+      const fullUrl = `${apiBaseUrl}/api/auth/login`;
+      console.log('使用完整URL进行请求:', fullUrl);
 
-      const response = await axios.post('/api/auth/login', values, {
+      // 使用fetch API代替axios进行请求
+      const response = await fetch(fullUrl, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        withCredentials: true
+        body: JSON.stringify(values),
+        credentials: 'include' // 包含cookie
       });
 
-      console.log('登录响应:', response);
-      const { data } = response;
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('登录响应:', data);
 
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
@@ -40,17 +47,22 @@ const LoginPage = () => {
       navigate('/');
     } catch (error) {
       console.error('登录错误:', error);
-      if (error.response) {
-        console.error('HTTP状态码:', error.response.status);
-        console.error('响应数据:', error.response.data);
-        console.error('响应头部:', error.response.headers);
-        message.error(error.response.data?.message || `登录失败 (${error.response.status})`);
-      } else if (error.request) {
-        console.error('请求已发送但未收到响应:', error.request);
-        message.error('服务器无响应，请检查网络连接或联系管理员');
-      } else {
-        console.error('请求配置错误:', error.message);
-        message.error(`登录请求错误: ${error.message}`);
+      message.error(`登录失败: ${error.message}`);
+
+      // 尝试使用原始axios进行请求（作为备用）
+      try {
+        console.log('尝试使用axios进行登录...');
+        const response = await axios.post('/api/auth/login', values);
+        console.log('使用axios登录成功:', response.data);
+
+        const { data } = response;
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify(data.user));
+        axios.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
+        message.success('登录成功');
+        navigate('/');
+      } catch (axiosError) {
+        console.error('axios登录失败:', axiosError);
       }
     } finally {
       setLoading(false);
@@ -61,31 +73,44 @@ const LoginPage = () => {
     setLoading(true);
     try {
       console.log('开始发送注册请求，数据:', values);
-      console.log('请求URL:', axios.defaults.baseURL + '/api/auth/register');
 
-      const response = await axios.post('/api/auth/register', values, {
+      // 尝试使用直接请求而不是相对路径
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
+      const fullUrl = `${apiBaseUrl}/api/auth/register`;
+      console.log('使用完整URL进行请求:', fullUrl);
+
+      // 使用fetch API代替axios进行请求
+      const response = await fetch(fullUrl, {
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        withCredentials: true
+        body: JSON.stringify(values),
+        credentials: 'include' // 包含cookie
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
 
       console.log('注册响应:', response);
       message.success('注册成功，请登录');
       registerForm.resetFields();
     } catch (error) {
       console.error('注册错误:', error);
-      if (error.response) {
-        console.error('HTTP状态码:', error.response.status);
-        console.error('响应数据:', error.response.data);
-        message.error(error.response.data?.message || `注册失败 (${error.response.status})`);
-      } else if (error.request) {
-        console.error('请求已发送但未收到响应:', error.request);
-        message.error('服务器无响应，请检查网络连接或联系管理员');
-      } else {
-        console.error('请求配置错误:', error.message);
-        message.error(`注册请求错误: ${error.message}`);
+      message.error(`注册失败: ${error.message}`);
+
+      // 尝试使用原始axios进行请求（作为备用）
+      try {
+        console.log('尝试使用axios进行注册...');
+        const response = await axios.post('/api/auth/register', values);
+        console.log('使用axios注册成功:', response.data);
+        message.success('注册成功，请登录');
+        registerForm.resetFields();
+      } catch (axiosError) {
+        console.error('axios注册失败:', axiosError);
       }
     } finally {
       setLoading(false);

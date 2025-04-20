@@ -36,50 +36,20 @@ const wsPort = process.env.WS_PORT || 3002;
 // 获取系统环境变量
 const processEnv = process.env;
 
-// 中间件配置 - 使用更简单的CORS配置
+// 导入CORS中间件
+const corsMiddleware = require('./middleware/cors');
 
-// 添加自定义CORS头部中间件
-app.use((req, res, next) => {
-  // 从环境变量获取允许的域名列表
-  const allowedOriginsStr = process.env.CORS_ALLOWED_ORIGINS || 'http://localhost:3005';
-  const allowedOrigins = allowedOriginsStr.split(',').map(origin => origin.trim());
+// 中间件配置
+// 使用自定义CORS中间件
+app.use(corsMiddleware);
 
-  // 获取请求的Origin
-  const origin = req.headers.origin;
+// 使用cors库作为备用
+app.use(cors());
 
-  // 记录所有请求的详细信息，便于调试
-  console.log(`收到请求: ${req.method} ${req.url}`);
-  console.log(`请求来源: ${origin || '未提供'}`);
-  console.log(`请求头部: ${JSON.stringify(req.headers)}`);
-
-  // 如果请求有Origin头部，并且在允许列表中
-  if (origin && allowedOrigins.includes(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
-    res.header('Access-Control-Allow-Credentials', 'true');
-    res.header('Access-Control-Expose-Headers', 'Content-Length, Content-Type');
-
-    // 如果是OPTIONS请求，直接返回200
-    if (req.method === 'OPTIONS') {
-      console.log('响应OPTIONS预检请求');
-      return res.status(200).end();
-    }
-  } else if (origin) {
-    console.log(`CORS请求被拒绝: ${origin} 不在允许列表中`);
-    console.log(`当前允许的域名: ${allowedOrigins.join(', ')}`);
-  }
-
-  next();
+// 添加OPTIONS请求的全局处理
+app.options('*', (req, res) => {
+  res.status(200).end();
 });
-
-// 保留cors中间件作为备用
-app.use(cors({
-  origin: true, // 允许所有来源，因为我们已经在上面的中间件中处理了
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
-  credentials: true
-}));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
