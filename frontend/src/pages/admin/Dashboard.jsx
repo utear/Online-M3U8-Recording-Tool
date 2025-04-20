@@ -9,12 +9,14 @@ import {
   ReloadOutlined,
   VideoCameraOutlined,
   HomeOutlined,
+  FolderOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import UserManagement from './UserManagement';
 import TaskManagement from './TaskManagement';
 import SystemSettings from './SystemSettings';
+import FileManagement from './FileManagement';
 
 const { Header, Sider, Content } = Layout;
 
@@ -226,12 +228,18 @@ const Dashboard = () => {
             },
             {
               key: '4',
-              icon: <SettingOutlined />,
-              label: '系统设置',
+              icon: <FolderOutlined />,
+              label: '文件管理',
               onClick: () => handleMenuClick('4'),
             },
             {
               key: '5',
+              icon: <SettingOutlined />,
+              label: '系统设置',
+              onClick: () => handleMenuClick('5'),
+            },
+            {
+              key: '6',
               icon: <LogoutOutlined />,
               label: '退出登录',
               onClick: handleLogout,
@@ -320,7 +328,9 @@ const Dashboard = () => {
 
           {activeKey === '3' && <TaskManagement />}
 
-          {activeKey === '4' && <SystemSettings />}
+          {activeKey === '4' && <FileManagement />}
+
+          {activeKey === '5' && <SystemSettings />}
           </Spin>
         </Content>
       </Layout>
