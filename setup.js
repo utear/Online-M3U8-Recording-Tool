@@ -457,6 +457,15 @@ async function main() {
     });
   });
   
+  // 获取端口配置结束
+
+  // 默认API和WebSocket URL使用本地IP
+  let apiBaseUrl = `http://${localIp}:${backendPort}`;
+  let wsUrl = `ws://${localIp}:${wsPort}`;
+  
+  // 准备前端允许的主机列表
+  let allowedHosts = [`${localIp}`, 'localhost'];
+  
   // CORS域名配置
   let customDomains = [];
   let addCustomDomain = false;
@@ -483,21 +492,71 @@ async function main() {
     });
     
     if (inputDomains) {
-      // 拆分域名并为每个域名生成三个不同协议和端口的URL
-      const domains = inputDomains.split(',').map(domain => domain.trim());
-      domains.forEach(domain => {
-        // 为每个域名生成HTTP后端、HTTP前端、WebSocket三个URL
-        const httpBackend = `http://${domain}:${backendPort}`;
-        const httpFrontend = `http://${domain}:${frontendPort}`;
-        const wsBackend = `ws://${domain}:${wsPort}`;
-        
-        customDomains.push(httpBackend, httpFrontend, wsBackend);
+      // 拆分并清理域名
+      const cleanDomains = inputDomains.split(',')
+        .map(domain => domain.trim())
+        .map(domain => domain.replace(/^https?:\/\//, '').replace(/^ws:\/\//, '').replace(/:\d+$/, ''));
+      
+      // 更新allowedHosts，确保不重复
+      allowedHosts = [...new Set([...allowedHosts, ...cleanDomains])];
+      
+      // 为每个域名生成URL组合
+      cleanDomains.forEach(domain => {
+        customDomains.push(
+          `http://${domain}:${backendPort}`,
+          `http://${domain}:${frontendPort}`,
+          `ws://${domain}:${wsPort}`
+        );
         
         console.log(`为域名 ${domain} 添加以下地址到CORS配置:`);
-        console.log(`- ${httpBackend} (HTTP后端)`);
-        console.log(`- ${httpFrontend} (HTTP前端)`);
-        console.log(`- ${wsBackend} (WebSocket)`);
+        console.log(`- http://${domain}:${backendPort} (后端API)`);
+        console.log(`- http://${domain}:${frontendPort} (前端)`);
+        console.log(`- ws://${domain}:${wsPort} (WebSocket)`);
       });
+      
+      // 如果只有一个自定义域名，询问是否用它替换默认的API和WebSocket URL
+      if (cleanDomains.length === 1) {
+        const customDomain = cleanDomains[0];
+        await new Promise((resolve) => {
+          rl.question(`\n是否使用 ${customDomain} 作为API和WebSocket地址？(y/n, 默认: y): `, (answer) => {
+            if (answer.trim().toLowerCase() !== 'n') {
+              apiBaseUrl = `http://${customDomain}:${backendPort}`;
+              wsUrl = `ws://${customDomain}:${wsPort}`;
+              console.log(`\n已设置API地址为: ${apiBaseUrl}`);
+              console.log(`已设置WebSocket地址为: ${wsUrl}`);
+            }
+            resolve();
+          });
+        });
+      } 
+      // 如果有多个域名，让用户选择一个
+      else if (cleanDomains.length > 1) {
+        console.log('\n检测到多个域名，请选择一个作为API和WebSocket地址:');
+        for (let i = 0; i < cleanDomains.length; i++) {
+          console.log(`${i + 1}. ${cleanDomains[i]}`);
+        }
+        console.log(`${cleanDomains.length + 1}. 使用本地IP (${localIp})`);
+        
+        let selection = cleanDomains.length + 1; // 默认使用本地IP
+        await new Promise((resolve) => {
+          rl.question(`请选择 (1-${cleanDomains.length + 1}, 默认: ${cleanDomains.length + 1}): `, (answer) => {
+            const selected = parseInt(answer.trim());
+            if (!isNaN(selected) && selected >= 1 && selected <= cleanDomains.length + 1) {
+              selection = selected;
+            }
+            resolve();
+          });
+        });
+        
+        // 设置选定的域名
+        if (selection <= cleanDomains.length) {
+          const selectedDomain = cleanDomains[selection - 1];
+          apiBaseUrl = `http://${selectedDomain}:${backendPort}`;
+          wsUrl = `ws://${selectedDomain}:${wsPort}`;
+          console.log(`\n已设置API地址为: ${apiBaseUrl}`);
+          console.log(`已设置WebSocket地址为: ${wsUrl}`);
+        }
+      }
     }
   }
   
@@ -514,9 +573,11 @@ async function main() {
     `ws://${localIp}:${wsPort}`
   ];
   
-  // 合并自定义域名
+  // 合并自定义域名并去重
   if (customDomains.length > 0) {
     corsOrigins = [...corsOrigins, ...customDomains];
+    // 使用Set去除重复项
+    corsOrigins = [...new Set(corsOrigins)];
   }
   
   // 创建后端环境变量文件
@@ -524,7 +585,7 @@ async function main() {
   createEnvFile(path.join(process.cwd(), 'backend', '.env'), backendEnv);
   
   // 创建前端环境变量文件
-  const frontendEnv = `VITE_HOST=0.0.0.0\nVITE_PORT=${frontendPort}\nVITE_API_BASE_URL=http://${localIp}:${backendPort}\nVITE_WS_URL=ws://${localIp}:${wsPort}\nVITE_ALLOWED_HOSTS=${localIp},localhost`;
+  const frontendEnv = `VITE_HOST=0.0.0.0\nVITE_PORT=${frontendPort}\nVITE_API_BASE_URL=${apiBaseUrl}\nVITE_WS_URL=${wsUrl}\nVITE_ALLOWED_HOSTS=${allowedHosts.join(',')}`;
   createEnvFile(path.join(process.cwd(), 'frontend', '.env'), frontendEnv);
   
   try {
