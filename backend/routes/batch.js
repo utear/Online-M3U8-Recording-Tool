@@ -16,6 +16,7 @@ const {
     updateTaskStatus,
     addTaskHistory,
     updateTaskOutput,
+    updateTaskTempDir,
     deleteTaskGroup
 } = require('../models/database');
 
@@ -163,7 +164,7 @@ router.get('/:groupId', async (req, res) => {
 router.delete('/:groupId', async (req, res) => {
     try {
         const { groupId } = req.params;
-        
+
         // 获取任务组信息
         const group = await getTaskGroupById(groupId);
 
@@ -197,6 +198,51 @@ router.delete('/:groupId', async (req, res) => {
             // 从活动任务中移除
             if (global.activeTasks.has(task.id)) {
                 global.activeTasks.delete(task.id);
+            }
+
+            // 删除任务的输出文件和临时目录
+            try {
+                // 获取任务详细信息
+                const taskInfo = await new Promise((resolve, reject) => {
+                    db.get('SELECT * FROM tasks WHERE id = ?', [task.id], (err, row) => {
+                        if (err) reject(err);
+                        else resolve(row);
+                    });
+                });
+
+                if (taskInfo && taskInfo.outputFile) {
+                    // 删除输出文件
+                    try {
+                        if (fs.existsSync(taskInfo.outputFile)) {
+                            fs.unlinkSync(taskInfo.outputFile);
+                            console.log(`成功删除批量任务输出文件: ${taskInfo.outputFile}`);
+                        }
+                    } catch (fileError) {
+                        console.error(`删除批量任务输出文件失败: ${taskInfo.outputFile}`, fileError);
+                    }
+
+                    // 删除临时目录
+                    let tempPath = taskInfo.tempDir;
+
+                    // 如果数据库中没有保存临时目录路径，尝试从文件名推断
+                    if (!tempPath && taskInfo.outputFile) {
+                        const fileName = path.basename(taskInfo.outputFile);
+                        const tempDirName = fileName.replace(/\.[^/.]+$/, '');
+                        tempPath = path.join(__dirname, '..', 'temp', tempDirName);
+                        console.log(`从文件名推断的临时目录路径: ${tempPath}`);
+                    }
+
+                    if (tempPath && fs.existsSync(tempPath)) {
+                        try {
+                            fs.rmSync(tempPath, { recursive: true, force: true });
+                            console.log(`成功删除批量任务临时目录: ${tempPath}`);
+                        } catch (dirError) {
+                            console.error(`删除批量任务临时目录失败: ${tempPath}`, dirError);
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error(`删除批量任务文件失败:`, error);
             }
 
             // 从数据库中删除任务
@@ -299,6 +345,12 @@ async function startRecordingTask(taskId, username, options) {
         // 更新任务状态
         await updateTaskStatus(taskId, 'running');
 
+        // 生成并保存临时目录路径
+        const saveName = taskOptions['save-name'] || 'output';
+        const tempDirPath = path.join(tmpDir, saveName);
+        await updateTaskTempDir(taskId, tempDirPath);
+        console.log(`批量任务 ${taskId} 保存临时目录路径:`, tempDirPath);
+
         // 将任务添加到活动任务列表
         global.activeTasks.set(taskId, {
             id: taskId,
@@ -328,14 +380,14 @@ async function startRecordingTask(taskId, username, options) {
             const task = global.activeTasks.get(taskId);
             if (task) {
                 task.outputHistory += output + '\n';  // 确保每条输出后面都有换行
-                
+
                 // 检查输出中是否包含文件大小信息
                 const fileSizeMatch = output.match(/(\d+(\.\d+)?)\s*MB/);
                 if (fileSizeMatch) {
                     const fileSizeMB = parseFloat(fileSizeMatch[1]);
                     task.fileSize = fileSizeMB * 1024 * 1024; // 转换为字节
                 }
-                
+
                 // 检查输出中是否包含保存文件名信息
                 const saveNameMatch = output.match(/保存文件名:\s*(.+)/);
                 if (saveNameMatch) {
@@ -459,7 +511,7 @@ async function startRecordingTask(taskId, username, options) {
                         outputFile: task.outputFile
                     });
                 }
-                
+
                 // 清空进程引用
                 task.process = null;
             }

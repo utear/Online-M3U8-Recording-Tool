@@ -154,6 +154,20 @@ function updateTaskOutput(taskId, outputFile, fileSize = 0) {
     });
 }
 
+// 更新任务的临时目录
+function updateTaskTempDir(taskId, tempDir) {
+    return new Promise((resolve, reject) => {
+        db.run(
+            'UPDATE tasks SET tempDir = ? WHERE id = ?',
+            [tempDir, taskId],
+            function(err) {
+                if (err) reject(err);
+                else resolve(this.changes);
+            }
+        );
+    });
+}
+
 // 获取所有任务
 async function getAllTasks(username, isAdmin = false) {
     return new Promise((resolve, reject) => {
@@ -394,6 +408,7 @@ module.exports = {
     addTaskWithGroup,
     updateTaskStatus,
     updateTaskOutput,
+    updateTaskTempDir,
     getAllTasks,
     addTaskHistory,
     getTaskHistory,

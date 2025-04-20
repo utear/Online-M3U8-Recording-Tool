@@ -14,6 +14,7 @@ const {
   addTask,
   updateTaskStatus,
   updateTaskOutput,
+  updateTaskTempDir,
   getAllTasks,
   addTaskHistory,
   getTaskHistory
@@ -466,6 +467,12 @@ app.post('/api/start-recording', authenticateToken, async (req, res) => {
     await addTask(task);
     console.log(`[${new Date().toLocaleString()}] 创建新任务:`, { taskId, url, username });
 
+    // 生成并保存临时目录路径
+    const saveName = options['save-name'] || 'output';
+    const tempDirPath = path.join(tmpDir, saveName);
+    await updateTaskTempDir(taskId, tempDirPath);
+    console.log(`[${new Date().toLocaleString()}] 保存任务临时目录路径:`, tempDirPath);
+
     // 存储任务信息
     const outputFile = path.join(options['save-dir'], options['save-name'] || 'output.ts');
     activeTasks.set(taskId, {
@@ -842,33 +849,47 @@ app.delete('/api/tasks/:taskId', authenticateToken, async (req, res) => {
       }
 
       // 删除临时目录
-      const fileName = path.basename(taskInfo.outputFile);
-      const tempDirName = fileName.replace(/\.[^/.]+$/, '');
-      const tempPath = path.join(__dirname, 'temp', tempDirName);
-      console.log(`[${new Date().toLocaleString()}] 尝试删除临时目录: ${tempPath}`);
-      console.log(`[${new Date().toLocaleString()}] 临时目录是否存在: ${fs.existsSync(tempPath)}`);
+      // 首先检查数据库中保存的临时目录路径
+      let tempPath = taskInfo.tempDir;
 
-      try {
-        if (fs.existsSync(tempPath)) {
-          // 列出目录内容
-          const dirContents = fs.readdirSync(tempPath);
-          console.log(`[${new Date().toLocaleString()}] 临时目录内容:`, dirContents);
+      // 如果数据库中没有保存临时目录路径，尝试从文件名推断
+      if (!tempPath && taskInfo.outputFile) {
+        const fileName = path.basename(taskInfo.outputFile);
+        const tempDirName = fileName.replace(/\.[^/.]+$/, '');
+        tempPath = path.join(__dirname, 'temp', tempDirName);
+        console.log(`[${new Date().toLocaleString()}] 从文件名推断的临时目录路径: ${tempPath}`);
+      } else {
+        console.log(`[${new Date().toLocaleString()}] 使用数据库中保存的临时目录路径: ${tempPath}`);
+      }
 
-          // 检查文件权限
-          try {
-            fs.accessSync(tempPath, fs.constants.W_OK);
-            console.log(`[${new Date().toLocaleString()}] 有写入权限`);
-          } catch (err) {
-            console.error(`[${new Date().toLocaleString()}] 没有写入权限:`, err);
+      if (tempPath) {
+        console.log(`[${new Date().toLocaleString()}] 尝试删除临时目录: ${tempPath}`);
+        console.log(`[${new Date().toLocaleString()}] 临时目录是否存在: ${fs.existsSync(tempPath)}`);
+
+        try {
+          if (fs.existsSync(tempPath)) {
+            // 列出目录内容
+            const dirContents = fs.readdirSync(tempPath);
+            console.log(`[${new Date().toLocaleString()}] 临时目录内容:`, dirContents);
+
+            // 检查文件权限
+            try {
+              fs.accessSync(tempPath, fs.constants.W_OK);
+              console.log(`[${new Date().toLocaleString()}] 有写入权限`);
+            } catch (err) {
+              console.error(`[${new Date().toLocaleString()}] 没有写入权限:`, err);
+            }
+
+            fs.rmSync(tempPath, { recursive: true, force: true });
+            console.log(`[${new Date().toLocaleString()}] 成功删除临时目录: ${tempPath}`);
+          } else {
+            console.log(`[${new Date().toLocaleString()}] 临时目录不存在: ${tempPath}`);
           }
-
-          fs.rmSync(tempPath, { recursive: true, force: true });
-          console.log(`[${new Date().toLocaleString()}] 成功删除临时目录: ${tempPath}`);
-        } else {
-          console.log(`[${new Date().toLocaleString()}] 临时目录不存在: ${tempPath}`);
+        } catch (error) {
+          console.error(`[${new Date().toLocaleString()}] 删除临时目录失败: ${tempPath}`, error);
         }
-      } catch (error) {
-        console.error(`[${new Date().toLocaleString()}] 删除临时目录失败: ${tempPath}`, error);
+      } else {
+        console.log(`[${new Date().toLocaleString()}] 没有找到临时目录路径`);
       }
     } else {
       console.log(`[${new Date().toLocaleString()}] 任务没有关联的输出文件`);
