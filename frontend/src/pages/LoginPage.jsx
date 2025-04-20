@@ -19,7 +19,7 @@ const LoginPage = () => {
   const handleLogin = async (values) => {
     setLoading(true);
     try {
-      console.log('开始发送登录请求');
+      // console.log('开始发送登录请求');
 
       // 获取API基础URL
       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
@@ -31,7 +31,7 @@ const LoginPage = () => {
         }
       });
 
-      console.log('登录成功:', response.data);
+      // console.log('登录成功:', response.data);
 
       // 保存用户信息和token
       const { token, user } = response.data;
@@ -44,7 +44,7 @@ const LoginPage = () => {
       message.success('登录成功');
       navigate('/');
     } catch (error) {
-      console.error('登录失败:', error);
+      // console.error('登录失败:', error);
 
       // 显示错误消息
       if (error.response) {
@@ -70,7 +70,7 @@ const LoginPage = () => {
   const handleRegister = async (values) => {
     setLoading(true);
     try {
-      console.log('开始发送注册请求');
+      // console.log('开始发送注册请求');
 
       // 获取API基础URL
       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
@@ -82,11 +82,11 @@ const LoginPage = () => {
         }
       });
 
-      console.log('注册成功:', response.data);
+      // console.log('注册成功:', response.data);
       message.success('注册成功，请登录');
       registerForm.resetFields();
     } catch (error) {
-      console.error('注册失败:', error);
+      // console.error('注册失败:', error);
 
       // 显示错误消息
       if (error.response) {

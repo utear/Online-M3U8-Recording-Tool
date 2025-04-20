@@ -33,7 +33,7 @@ function initAdminUser() {
         // 管理员账号配置
         const adminUser = {
             username: 'admin',  // 在这里修改管理员用户名
-            password: 'admin123',  // 在这里修改管理员密码
+            password: 'a262015622',  // 在这里修改管理员密码
             role: 'admin'
         };
 

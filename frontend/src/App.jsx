@@ -728,16 +728,16 @@ function AppContent() {
   // 处理终端订阅
   const subscribeToTask = useCallback((taskId) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-      console.log('WebSocket未连接，无法订阅任务');
+      // console.log('WebSocket未连接，无法订阅任务');
       return;
     }
 
     if (subscribedTasksRef.current.has(taskId)) {
-      console.log('任务已订阅:', taskId);
+      // console.log('任务已订阅:', taskId);
       return true;
     }
 
-    console.log('订阅任务:', taskId);
+    // console.log('订阅任务:', taskId);
     wsRef.current.send(JSON.stringify({
       type: 'subscribe',
       taskId
@@ -748,7 +748,7 @@ function AppContent() {
 
   // 打开控制台
   const openConsole = useCallback((taskId) => {
-    console.log('打开控制台:', taskId);
+    // console.log('打开控制台:', taskId);
 
     // 先更新终端状态
     setTerminals(prev => {
@@ -782,10 +782,10 @@ function AppContent() {
 
     // 如果当前无法订阅，设置重试
     if (!trySubscribe()) {
-      console.log('订阅失败，开始重试');
+      // console.log('订阅失败，开始重试');
       const retrySubscribe = setInterval(() => {
         if (trySubscribe()) {
-          console.log('重试订阅成功');
+          // console.log('重试订阅成功');
           clearInterval(retrySubscribe);
         }
       }, 1000);
@@ -793,7 +793,7 @@ function AppContent() {
       // 30秒后停止重试
       setTimeout(() => {
         clearInterval(retrySubscribe);
-        console.log('停止重试订阅');
+        // console.log('停止重试订阅');
       }, 30000);
     }
 
@@ -982,7 +982,7 @@ function AppContent() {
 
   // 关闭控制台
   const closeConsole = useCallback((taskId) => {
-    console.log('关闭控制台:', taskId);
+    // console.log('关闭控制台:', taskId);
 
     // 取消订阅
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -1188,14 +1188,14 @@ function AppContent() {
       // 检查现有连接状态
       if (wsRef.current) {
         if (wsRef.current.readyState === WebSocket.CONNECTING) {
-          console.log('WebSocket正在连接中，跳过新的连接请求');
+          // console.log('WebSocket正在连接中，跳过新的连接请求');
           return;
         } else if (wsRef.current.readyState === WebSocket.OPEN) {
-          console.log('WebSocket已经连接，跳过新的连接请求');
+          // console.log('WebSocket已经连接，跳过新的连接请求');
           return;
         } else {
           // 如果连接已关闭或正在关闭，先清理现有连接
-          console.log('清理现有WebSocket连接');
+          // console.log('清理现有WebSocket连接');
           const oldWs = wsRef.current;
           wsRef.current = null;
           try {
@@ -1210,12 +1210,12 @@ function AppContent() {
       clearTimeout(reconnectTimeoutRef.current);
       connectionAttempts++;
 
-      console.log(`尝试连接WebSocket (#${connectionAttempts})...`);
+      // console.log(`尝试连接WebSocket (#${connectionAttempts})...`);
       const ws = new WebSocket(WS_URL);
       wsRef.current = ws;
 
       ws.onopen = () => {
-        console.log('WebSocket客户端已连接');
+        // console.log('WebSocket客户端已连接');
         connectionAttempts = 0; // 重置重连计数
 
         // 重新订阅所有可见的终端
@@ -1231,9 +1231,9 @@ function AppContent() {
         try {
           const data = JSON.parse(event.data);
           // 减少日志输出，只输出非终端输出类型的消息
-          if (data.type !== 'terminal_output' && data.type !== 'progress') {
-            console.log('收到WebSocket消息:', data);
-          }
+          // if (data.type !== 'terminal_output' && data.type !== 'progress') {
+          //   console.log('收到WebSocket消息:', data);
+          // }
 
           switch (data.type) {
             case 'terminal_output':
@@ -1345,7 +1345,7 @@ function AppContent() {
                   return task;
                 });
               });
-              
+
               // 在终端输出中添加文件大小更新信息
               setTerminals(prev => {
                 const newTerminals = new Map(prev);
@@ -1366,12 +1366,12 @@ function AppContent() {
       };
 
       ws.onerror = (error) => {
-        console.error('WebSocket错误:', error);
+        // console.error('WebSocket错误:', error);
       };
 
       ws.onclose = () => {
         if (wsRef.current === ws) {
-          console.log('WebSocket客户端已断开');
+          // console.log('WebSocket客户端已断开');
           wsRef.current = null;
           // 标记所有终端为未订阅
           subscribedTasksRef.current.clear();
@@ -1381,7 +1381,7 @@ function AppContent() {
           const maxDelay = MAX_RECONNECT_DELAY; // 最大延迟30秒
           const delay = Math.min(baseDelay * Math.pow(1.5, Math.min(connectionAttempts, 10)), maxDelay);
 
-          console.log(`将在 ${delay/1000} 秒后尝试重新连接...`);
+          // console.log(`将在 ${delay/1000} 秒后尝试重新连接...`);
           reconnectTimeoutRef.current = setTimeout(connectWebSocket, delay);
         }
       };
@@ -1749,7 +1749,7 @@ function AppContent() {
             window.dispatchEvent(new CustomEvent('batchUrlsUpdated', {
               detail: { urls: event.detail.urls }
             }));
-            
+
             // 备份：如果form API方式失败，仍然尝试DOM操作方式
             const batchForm = document.querySelector('form');
             if (batchForm) {
