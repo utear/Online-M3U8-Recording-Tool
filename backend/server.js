@@ -43,11 +43,33 @@ const corsMiddleware = require('./middleware/cors');
 // 使用自定义CORS中间件
 app.use(corsMiddleware);
 
-// 使用cors库作为备用
-app.use(cors());
+// 配置cors库作为备用
+const corsOptions = {
+  origin: function (origin, callback) {
+    // 允许所有来源
+    callback(null, true);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  exposedHeaders: ['Content-Length', 'Content-Type'],
+  maxAge: 86400 // 24小时
+};
+app.use(cors(corsOptions));
 
 // 添加OPTIONS请求的全局处理
 app.options('*', (req, res) => {
+  // 手动设置OPTIONS请求的头部
+  const origin = req.headers.origin;
+  if (origin) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else {
+    res.header('Access-Control-Allow-Origin', '*');
+  }
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Max-Age', '86400');
   res.status(200).end();
 });
 app.use(bodyParser.json());
