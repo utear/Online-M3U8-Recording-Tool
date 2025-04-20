@@ -328,12 +328,17 @@ setInterval(() => {
 // 更新任务文件大小到数据库
 async function updateTaskFileSize(taskId, fileSize) {
   try {
-    const taskRef = db.collection('tasks').doc(taskId);
-    await taskRef.update({
-      fileSize: fileSize,
-      lastUpdated: new Date().toISOString()
+    // 直接使用SQLite原生方法只更新文件大小
+    return new Promise((resolve, reject) => {
+      db.run(
+        'UPDATE tasks SET fileSize = ? WHERE id = ?',
+        [fileSize, taskId],
+        function(err) {
+          if (err) reject(err);
+          else resolve(this.changes);
+        }
+      );
     });
-    return true;
   } catch (error) {
     console.error(`更新任务 ${taskId} 的文件大小到数据库失败:`, error);
     return false;
