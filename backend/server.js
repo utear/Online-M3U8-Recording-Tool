@@ -39,40 +39,29 @@ const processEnv = process.env;
 // 导入CORS中间件
 const corsMiddleware = require('./middleware/cors');
 
+// 检查是否使用简化版CORS配置
+const useSimpleCors = process.env.SIMPLE_CORS === 'true';
+
 // 在所有中间件之前应用CORS中间件
 // 这是最重要的一步，确保CORS头部在所有响应中都存在
 app.use(corsMiddleware);
 
-// 添加OPTIONS请求的全局处理
-// 这个处理器会在所有路由之前捕获OPTIONS请求
-app.options('*', (req, res) => {
-  console.log('[OPTIONS] 收到OPTIONS预检请求:', req.url);
-  console.log('[OPTIONS] 请求头部:', req.headers);
+// 如果使用简化版CORS，添加一个全局中间件来处理所有请求
+if (useSimpleCors) {
+  console.log('使用简化版CORS配置，允许所有来源的请求');
+  app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+    res.header('Access-Control-Allow-Credentials', 'true');
+    res.header('Access-Control-Max-Age', '86400');
 
-  // 手动设置OPTIONS请求的头部
-  const origin = req.headers.origin;
-  res.setHeader('Access-Control-Allow-Origin', origin || '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Max-Age', '86400');
-
-  // 直接返回200状态码，不需要任何响应体
-  return res.status(200).end();
-});
-
-// 使用cors库作为备用
-const corsOptions = {
-  origin: true, // 允许所有来源
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
-  exposedHeaders: ['Content-Length', 'Content-Type'],
-  maxAge: 86400, // 24小时
-  preflightContinue: false,
-  optionsSuccessStatus: 200
-};
-app.use(cors(corsOptions));
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+}
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
@@ -114,111 +103,9 @@ function authenticateToken(req, res, next) {
   });
 };
 
-// 登录路由
-app.post('/api/auth/login', async (req, res) => {
-  try {
-    const { username, password } = req.body;
+// 登录和注册路由已移至auth.js模块
 
-    if (!username || !password) {
-      return res.status(400).json({ message: '用户名和密码不能为空' });
-    }
-
-    // 验证用户
-    const user = await validateUser(username, password);
-
-    if (!user) {
-      return res.status(401).json({ message: '用户名或密码错误' });
-    }
-
-    // 生成token，使用数据库中的角色信息
-    const token = jwt.sign(
-      {
-        id: user.id,
-        username: user.username,
-        role: user.role  // 使用数据库中的角色
-      },
-      JWT_SECRET,
-      { expiresIn: '24h' }
-    );
-
-    res.json({
-      token,
-      user: {
-        id: user.id,
-        username: user.username,
-        role: user.role  // 使用数据库中的角色
-      }
-    });
-  } catch (error) {
-    console.error('登录失败:', error);
-    res.status(500).json({ message: '登录失败' });
-  }
-});
-
-// 注册路由
-app.post('/api/auth/register', async (req, res) => {
-  try {
-    const { username, password } = req.body;
-
-    if (!username || !password) {
-      return res.status(400).json({ message: '用户名和密码不能为空' });
-    }
-
-    // 检查用户名是否已存在
-    const existingUser = await getUser(username);
-    if (existingUser) {
-      return res.status(400).json({ message: '用户名已存在' });
-    }
-
-    // 创建新用户
-    await registerUser(username, password);
-
-    res.status(201).json({ message: '注册成功' });
-  } catch (error) {
-    console.error('注册错误:', error);
-    res.status(500).json({ message: '服务器错误' });
-  }
-});
-
-// 刷新token路由
-app.post('/api/auth/refresh-token', async (req, res) => {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    return res.status(401).json({ message: '未授权' });
-  }
-
-  try {
-    // 即使token过期也尝试解码
-    const decoded = jwt.decode(token);
-    if (!decoded) {
-      return res.status(403).json({ message: '无效的token' });
-    }
-
-    // 获取用户信息
-    const user = await getUser(decoded.username);
-    if (!user) {
-      return res.status(403).json({ message: '用户不存在' });
-    }
-
-    // 生成新token
-    const newToken = jwt.sign(
-      {
-        id: user.id,
-        username: user.username,
-        role: user.role
-      },
-      JWT_SECRET,
-      { expiresIn: '24h' }
-    );
-
-    res.json({ token: newToken });
-  } catch (error) {
-    console.error('刷新token失败:', error);
-    res.status(403).json({ message: '刷新token失败' });
-  }
-});
+// 刷新token路由已移至auth.js模块
 
 // 获取用户信息
 app.get('/api/users/me', authenticateToken, async (req, res) => {

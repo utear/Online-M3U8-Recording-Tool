@@ -582,7 +582,7 @@ async function main() {
   }
 
   // 创建后端环境变量文件
-  const backendEnv = `PORT=${backendPort}\nHOST=0.0.0.0\nWS_PORT=${wsPort}\nJWT_SECRET=your-secret-key\nTOKEN_EXPIRE=24h\n# CORS 配置，多个域名使用逗号分隔\n# 注意：生产环境中需要包含所有可能的访问源，包括前端、后端和WebSocket地址\nCORS_ALLOWED_ORIGINS=${corsOrigins.join(',')}`;
+  const backendEnv = `PORT=${backendPort}\nHOST=0.0.0.0\nWS_PORT=${wsPort}\nJWT_SECRET=your-secret-key\nTOKEN_EXPIRE=24h\n# CORS 配置，多个域名使用逗号分隔\n# 注意：生产环境中需要包含所有可能的访问源\n# 包含所有可能的访问源，确保CORS正确工作\nCORS_ALLOWED_ORIGINS=${corsOrigins.join(',')}\n\n# 简化CORS配置，如果上面的配置不起作用，可以将此值设为true\n# 这将允许所有来源的请求，但可能导致安全风险\nSIMPLE_CORS=false`;
   createEnvFile(path.join(process.cwd(), 'backend', '.env'), backendEnv);
 
   // 创建前端环境变量文件
