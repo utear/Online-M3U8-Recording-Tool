@@ -9,6 +9,10 @@ const path = require('path');
 const iconv = require('iconv-lite');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+
+// 初始化数据库
+// 引入数据库初始化脚本，脚本会自动执行
+require('./scripts/init-database');
 const {
   db,
   addTask,
@@ -66,7 +70,10 @@ if (useSimpleCors) {
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// 初始化IPTV服务
+// 初始化数据库和IPTV服务
+// 注意：数据库初始化脚本会自动执行，无需手动调用
+// 这样用户在首次运行项目时就能自动创建包含所有必要字段的数据库表
+// 无需手动运行多个升级脚本
 iptvService.init().catch(console.error);
 
 // 路由配置

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Card, Form, Input, Button, message, Typography, Tabs } from 'antd';
-import { UserOutlined, LockOutlined, MailOutlined } from '@ant-design/icons';
+import { Card, Form, Input, Button, message, Typography, Tabs, Alert, Modal } from 'antd';
+import { UserOutlined, LockOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
@@ -11,6 +11,8 @@ const LoginPage = () => {
   const [registerForm] = Form.useForm();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [registerSuccess, setRegisterSuccess] = useState(false);
+  const [loginError, setLoginError] = useState(null);
 
   /**
    * 处理登录请求
@@ -50,7 +52,18 @@ const LoginPage = () => {
       if (error.response) {
         // 服务器响应了错误状态码
         const errorMsg = error.response.data?.message || '登录失败';
-        message.error(errorMsg);
+        const status = error.response.data?.status;
+
+        // 如果是待审核、被拒绝或被禁用的状态，设置登录错误状态
+        if (status === 'pending' || status === 'rejected' || error.response.data?.enabled === false) {
+          setLoginError({
+            message: errorMsg,
+            status: status || 'disabled',
+            enabled: error.response.data?.enabled
+          });
+        } else {
+          message.error(errorMsg);
+        }
       } else if (error.request) {
         // 请求发送了但没有收到响应
         message.error('服务器无响应，请检查网络连接');
@@ -83,8 +96,15 @@ const LoginPage = () => {
       });
 
       // console.log('注册成功:', response.data);
-      message.success('注册成功，请登录');
+      setRegisterSuccess(true);
       registerForm.resetFields();
+
+      // 显示注册成功弹窗
+      Modal.success({
+        title: '注册成功',
+        content: '您的账号已成功注册，需要等待管理员审核后才能登录。',
+        okText: '我知道了'
+      });
     } catch (error) {
       // console.error('注册失败:', error);
 
@@ -136,6 +156,25 @@ const LoginPage = () => {
               placeholder="密码"
             />
           </Form.Item>
+
+          {loginError && (
+            <Form.Item>
+              <Alert
+                message={
+                  loginError.status === 'pending' ? '账号待审核' :
+                  loginError.status === 'rejected' ? '账号已被拒绝' :
+                  '账号已被禁用'
+                }
+                description={loginError.message}
+                type={
+                  loginError.status === 'pending' ? 'info' :
+                  'error'
+                }
+                showIcon
+                icon={<InfoCircleOutlined />}
+              />
+            </Form.Item>
+          )}
 
           <Form.Item>
             <Button
@@ -208,6 +247,17 @@ const LoginPage = () => {
               placeholder="确认密码"
             />
           </Form.Item>
+
+          {registerSuccess && (
+            <Form.Item>
+              <Alert
+                message="注册成功，等待审核"
+                description="您的账号已成功注册，需要等待管理员审核后才能登录。"
+                type="success"
+                showIcon
+              />
+            </Form.Item>
+          )}
 
           <Form.Item>
             <Button

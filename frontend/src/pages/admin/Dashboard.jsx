@@ -17,6 +17,7 @@ import UserManagement from './UserManagement';
 import TaskManagement from './TaskManagement';
 import SystemSettings from './SystemSettings';
 import FileManagement from './FileManagement';
+import PendingUsers from './PendingUsers';
 
 const { Header, Sider, Content } = Layout;
 
@@ -221,6 +222,12 @@ const Dashboard = () => {
               onClick: () => handleMenuClick('2'),
             },
             {
+              key: '7',
+              icon: <UserOutlined />,
+              label: '待审核用户',
+              onClick: () => handleMenuClick('7'),
+            },
+            {
               key: '3',
               icon: <CloudDownloadOutlined />,
               label: '任务管理',
@@ -331,6 +338,8 @@ const Dashboard = () => {
           {activeKey === '4' && <FileManagement />}
 
           {activeKey === '5' && <SystemSettings />}
+
+          {activeKey === '7' && <PendingUsers />}
           </Spin>
         </Content>
       </Layout>

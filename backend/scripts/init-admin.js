@@ -23,6 +23,8 @@ function initAdminUser() {
         username TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
         role TEXT NOT NULL,
+        status TEXT DEFAULT 'approved',
+        enabled INTEGER DEFAULT 1,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`, async (err) => {
         if (err) {
@@ -51,8 +53,8 @@ function initAdminUser() {
 
                 if (!row) {
                     // 插入管理员用户
-                    db.run('INSERT INTO users (username, password, role) VALUES (?, ?, ?)',
-                        [adminUser.username, hashedPassword, adminUser.role],
+                    db.run('INSERT INTO users (username, password, role, status, enabled) VALUES (?, ?, ?, ?, ?)',
+                        [adminUser.username, hashedPassword, adminUser.role, 'approved', 1],
                         (err) => {
                             if (err) {
                                 console.error('创建管理员用户失败:', err);

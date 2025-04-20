@@ -51,6 +51,7 @@ function initDatabase() {
                 fileSize INTEGER DEFAULT 0,
                 options TEXT,
                 groupId TEXT,
+                tempDir TEXT,
                 FOREIGN KEY(username) REFERENCES users(username),
                 FOREIGN KEY(groupId) REFERENCES task_groups(id)
             )

@@ -17,7 +17,12 @@ import {
   PlusOutlined,
   EditOutlined,
   DeleteOutlined,
-  ExclamationCircleOutlined
+  ExclamationCircleOutlined,
+  CheckCircleOutlined,
+  StopOutlined,
+  LockOutlined,
+  UnlockOutlined,
+  ClockCircleOutlined
 } from '@ant-design/icons';
 import axios from 'axios';
 
@@ -35,7 +40,7 @@ const UserManagement = () => {
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      const response = await axios.get('/api/users');
+      const response = await axios.get('/api/auth/users');
       setUsers(response.data);
     } catch (error) {
       message.error('获取用户列表失败');
@@ -117,6 +122,18 @@ const UserManagement = () => {
     }
   };
 
+  // 启用/禁用用户
+  const handleToggleEnabled = async (username, enabled) => {
+    try {
+      await axios.post('/api/auth/toggle-user', { username, enabled });
+      message.success(`用户 ${username} 已${enabled ? '启用' : '禁用'}`);
+      fetchUsers();
+    } catch (error) {
+      message.error(`${enabled ? '启用' : '禁用'}用户失败`);
+      console.error(`${enabled ? '启用' : '禁用'}用户失败:`, error);
+    }
+  };
+
   // 表格列定义
   const columns = [
     {
@@ -138,6 +155,52 @@ const UserManagement = () => {
       },
     },
     {
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+      render: (status, record) => {
+        let color = 'default';
+        let text = '未知';
+        let icon = null;
+
+        if (status === 'pending') {
+          color = 'blue';
+          text = '待审核';
+          icon = <ClockCircleOutlined />;
+        } else if (status === 'rejected') {
+          color = 'red';
+          text = '已拒绝';
+          icon = <StopOutlined />;
+        } else if (status === 'approved') {
+          if (record.enabled === 0) {
+            color = 'orange';
+            text = '已禁用';
+            icon = <LockOutlined />;
+          } else {
+            color = 'green';
+            text = '正常';
+            icon = <CheckCircleOutlined />;
+          }
+        }
+
+        return (
+          <Tag color={color} icon={icon}>
+            {text}
+          </Tag>
+        );
+      },
+    },
+    {
+      title: '启用状态',
+      dataIndex: 'enabled',
+      key: 'enabled',
+      render: (enabled) => {
+        return enabled === 0 ?
+          <Tag color="red" icon={<LockOutlined />}>禁用</Tag> :
+          <Tag color="green" icon={<UnlockOutlined />}>启用</Tag>;
+      },
+    },
+    {
       title: '创建时间',
       dataIndex: 'created_at',
       key: 'created_at',
@@ -156,6 +219,36 @@ const UserManagement = () => {
           >
             编辑
           </Button>
+
+          {record.enabled === 1 ? (
+            <Popconfirm
+              title="确定要禁用此用户吗？"
+              onConfirm={() => handleToggleEnabled(record.username, false)}
+              okText="确定"
+              cancelText="取消"
+              icon={<ExclamationCircleOutlined style={{ color: 'orange' }} />}
+            >
+              <Button
+                type="primary"
+                danger
+                icon={<LockOutlined />}
+                size="small"
+              >
+                禁用
+              </Button>
+            </Popconfirm>
+          ) : (
+            <Button
+              type="primary"
+              style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
+              icon={<UnlockOutlined />}
+              size="small"
+              onClick={() => handleToggleEnabled(record.username, true)}
+            >
+              启用
+            </Button>
+          )}
+
           <Popconfirm
             title="确定要删除此用户吗？"
             onConfirm={() => handleDelete(record.username)}
