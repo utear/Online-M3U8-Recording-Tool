@@ -13,10 +13,12 @@
     "@ant-design/icons": "^5.2.6",
     "antd": "^5.12.5",
     "axios": "^1.6.2",
+    "hls.js": "^1.6.2",
     "rc-virtual-list": "^3.17.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.21.1"
+    "react-router-dom": "^6.21.1",
+    "video.js": "^8.22.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
