@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   Form,
   Input,
@@ -30,8 +30,7 @@ const { Title, Text } = Typography;
 // 从环境变量获取API基础URL
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001';
 
-const BatchRecording = ({ RECORDING_OPTIONS, fetchTasks }) => {
-  const [form] = Form.useForm();
+const BatchRecording = ({ RECORDING_OPTIONS, fetchTasks, form }) => {
   const [loading, setLoading] = useState(false);
   const [urls, setUrls] = useState([]);
   const [previewVisible, setPreviewVisible] = useState(false);
@@ -46,6 +45,9 @@ const BatchRecording = ({ RECORDING_OPTIONS, fetchTasks }) => {
     form.setFieldsValue({ urls: inputText });
   };
 
+  // 使用ref获取文本域元素
+  const textAreaRef = useRef(null);
+
   // 监听表单初始值变化
   useEffect(() => {
     const initialUrls = form.getFieldValue('urls');
@@ -53,26 +55,6 @@ const BatchRecording = ({ RECORDING_OPTIONS, fetchTasks }) => {
       const urlList = initialUrls.split('\n').filter(url => url.trim() !== '');
       setUrls(urlList);
     }
-
-    // 添加表单值变化监听器
-    const unsubscribe = form.getFieldInstance('urls')?.addEventListener('change', (e) => {
-      if (e.target.value) {
-        const urlList = e.target.value.split('\n').filter(url => url.trim() !== '');
-        setUrls(urlList);
-      }
-    });
-
-    // 创建表单值同步定时器，确保表单值不会丢失
-    const intervalId = setInterval(() => {
-      const formUrls = form.getFieldValue('urls');
-      if (formUrls) {
-        // 如果表单有值但组件状态无值，则同步到组件状态
-        if (formUrls.trim() && urls.length === 0) {
-          const urlList = formUrls.split('\n').filter(url => url.trim() !== '');
-          setUrls(urlList);
-        }
-      }
-    }, 500); // 每500ms检查一次
 
     // 监听App.jsx中的batchUrlsUpdated事件
     const handleBatchUrlsUpdated = (event) => {
@@ -88,12 +70,10 @@ const BatchRecording = ({ RECORDING_OPTIONS, fetchTasks }) => {
     window.addEventListener('batchUrlsUpdated', handleBatchUrlsUpdated);
 
     return () => {
-      // 清理监听器和定时器
-      if (unsubscribe) unsubscribe();
-      clearInterval(intervalId);
+      // 清理事件监听器
       window.removeEventListener('batchUrlsUpdated', handleBatchUrlsUpdated);
     };
-  }, [form, urls]);
+  }, [form]); // 只依赖form，避免无限循环
 
   // 预览批量任务
   const showPreview = () => {
@@ -246,6 +226,7 @@ const BatchRecording = ({ RECORDING_OPTIONS, fetchTasks }) => {
             placeholder="请输入视频流地址，每行一个"
             autoSize={{ minRows: 4, maxRows: 10 }}
             onChange={handleUrlsChange}
+            ref={textAreaRef}
           />
         </Form.Item>
 
@@ -331,11 +312,12 @@ const BatchRecording = ({ RECORDING_OPTIONS, fetchTasks }) => {
                     ) : option.type === 'datetime' ? (
                       <Input type="datetime-local" />
                     ) : option.type === 'select' ? (
-                      <Select placeholder={option.placeholder}>
-                        {option.options && option.options.map(value => (
-                          <Select.Option key={value} value={value.toString()}>{value}</Select.Option>
-                        ))}
-                      </Select>
+                      <Select placeholder={option.placeholder}
+                        options={option.options && option.options.map(value => ({
+                          label: value,
+                          value: value.toString()
+                        }))}
+                      />
                     ) : null}
                   </Form.Item>
                 ))}

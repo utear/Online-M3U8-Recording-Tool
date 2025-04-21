@@ -838,166 +838,108 @@ app.delete('/api/tasks/:taskId', authenticateToken, async (req, res) => {
       console.log(`[${new Date().toLocaleString()}] 进程已停止并从活动任务中移除`);
     }
 
-    // 删除下载目录中的文件
-    if (taskInfo && taskInfo.outputFile) {
-      try {
-        // 1. 尝试删除输出文件
-        let downloadPath = taskInfo.outputFile;
-        console.log(`[${new Date().toLocaleString()}] 检查文件路径: ${downloadPath}`);
+    try {
+      // 1. 删除输出文件
+      if (taskInfo && taskInfo.outputFile) {
+        // 获取文件名和目录
+        const outputDir = path.dirname(taskInfo.outputFile);
+        const baseNameWithoutExt = path.basename(taskInfo.outputFile, path.extname(taskInfo.outputFile));
 
-        // 检查文件是否存在
-        let fileExists = fs.existsSync(downloadPath);
-        console.log(`[${new Date().toLocaleString()}] 文件是否存在: ${fileExists}`);
+        // 列出目录中的所有文件
+        if (fs.existsSync(outputDir)) {
+          const files = fs.readdirSync(outputDir);
+          // 查找匹配的文件
+          const matchingFiles = files.filter(file => file.startsWith(baseNameWithoutExt));
 
-        if (!fileExists) {
-          // 2. 如果完整路径不存在，尝试在downloads目录中查找
-          downloadPath = path.join(__dirname, 'downloads', path.basename(taskInfo.outputFile));
-          console.log(`[${new Date().toLocaleString()}] 尝试备用路径: ${downloadPath}`);
-          fileExists = fs.existsSync(downloadPath);
-          console.log(`[${new Date().toLocaleString()}] 备用路径文件是否存在: ${fileExists}`);
-        }
+          if (matchingFiles.length > 0) {
+            console.log(`[${new Date().toLocaleString()}] 找到匹配的输出文件: ${matchingFiles.join(', ')}`);
 
-        // 尝试删除文件
-        if (fileExists) {
-          try {
-            console.log(`[${new Date().toLocaleString()}] 开始删除文件: ${downloadPath}`);
-            fs.unlinkSync(downloadPath);
-            console.log(`[${new Date().toLocaleString()}] 成功删除下载文件: ${downloadPath}`);
-
-            // 再次检查文件是否存在
-            const fileStillExists = fs.existsSync(downloadPath);
-            console.log(`[${new Date().toLocaleString()}] 删除后文件是否仍然存在: ${fileStillExists}`);
-          } catch (error) {
-            console.error(`[${new Date().toLocaleString()}] 删除下载文件失败: ${downloadPath}`, error);
-            console.error(`[${new Date().toLocaleString()}] 错误类型: ${error.name}, 错误信息: ${error.message}`);
-
-            // 尝试使用命令行删除
-            try {
-              console.log(`[${new Date().toLocaleString()}] 尝试使用命令行删除文件: ${downloadPath}`);
-              if (process.platform === 'win32') {
-                spawn('cmd', ['/c', 'del', '/f', '/q', downloadPath]);
-              } else {
-                spawn('rm', ['-f', downloadPath]);
-              }
-            } catch (cmdError) {
-              console.error(`[${new Date().toLocaleString()}] 命令行删除文件失败:`, cmdError);
+            // 删除所有匹配的文件
+            for (const file of matchingFiles) {
+              const filePath = path.join(outputDir, file);
+              fs.unlinkSync(filePath);
+              console.log(`[${new Date().toLocaleString()}] 成功删除输出文件: ${filePath}`);
             }
-          }
-        } else {
-          console.log(`[${new Date().toLocaleString()}] 下载文件不存在: ${downloadPath}`);
-        }
-
-        // 2. 删除临时目录
-        let tempPath = taskInfo.tempDir;
-        let tempPathExists = false;
-
-        // 如果数据库中有保存临时目录路径
-        if (tempPath) {
-          console.log(`[${new Date().toLocaleString()}] 使用数据库中保存的临时目录路径: ${tempPath}`);
-          tempPathExists = fs.existsSync(tempPath);
-          console.log(`[${new Date().toLocaleString()}] 临时目录是否存在: ${tempPathExists}`);
-        }
-
-        // 如果数据库中没有保存临时目录路径或路径不存在，尝试从文件名推断
-        if ((!tempPath || !tempPathExists) && taskInfo.outputFile) {
-          // 尝试从输出文件名推断临时目录名
-          const fileName = path.basename(taskInfo.outputFile);
-          const tempDirName = fileName.replace(/\.[^/.]+$/, '');
-
-          // 尝试多个可能的临时目录路径
-          const possibleTempPaths = [
-            path.join(__dirname, 'temp', tempDirName),
-            path.join(__dirname, 'temp', taskId),
-            path.join(__dirname, 'temp', taskInfo.url.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 50))
-          ];
-
-          // 检查每个可能的路径
-          for (const possiblePath of possibleTempPaths) {
-            console.log(`[${new Date().toLocaleString()}] 检查可能的临时目录路径: ${possiblePath}`);
-            if (fs.existsSync(possiblePath)) {
-              tempPath = possiblePath;
-              tempPathExists = true;
-              console.log(`[${new Date().toLocaleString()}] 找到有效的临时目录路径: ${tempPath}`);
-              break;
-            }
-          }
-
-          // 如果还是没有找到，尝试列出所有temp目录下的文件夹
-          if (!tempPathExists) {
-            console.log(`[${new Date().toLocaleString()}] 未找到临时目录，尝试列出所有temp目录`);
-            const tempDir = path.join(__dirname, 'temp');
-            if (fs.existsSync(tempDir)) {
-              const allTempDirs = fs.readdirSync(tempDir)
-                .filter(item => fs.statSync(path.join(tempDir, item)).isDirectory());
-              console.log(`[${new Date().toLocaleString()}] temp目录下的所有文件夹:`, allTempDirs);
-            }
+          } else {
+            console.log(`[${new Date().toLocaleString()}] 未找到匹配的输出文件: ${baseNameWithoutExt}`);
           }
         }
-
-        // 如果找到了临时目录，尝试删除
-        if (tempPath && tempPathExists) {
-          console.log(`[${new Date().toLocaleString()}] 尝试删除临时目录: ${tempPath}`);
-
-          // 列出目录内容
-          try {
-            const dirContents = fs.readdirSync(tempPath);
-            console.log(`[${new Date().toLocaleString()}] 临时目录内容:`, dirContents);
-          } catch (err) {
-            console.error(`[${new Date().toLocaleString()}] 无法读取目录内容:`, err);
-          }
-
-          // 检查文件权限
-          try {
-            fs.accessSync(tempPath, fs.constants.W_OK);
-            console.log(`[${new Date().toLocaleString()}] 有写入权限`);
-          } catch (err) {
-            console.error(`[${new Date().toLocaleString()}] 没有写入权限:`, err);
-          }
-
-          // 尝试删除目录
-          try {
-            console.log(`[${new Date().toLocaleString()}] 开始删除临时目录: ${tempPath}`);
-            fs.rmSync(tempPath, { recursive: true, force: true });
-            console.log(`[${new Date().toLocaleString()}] 成功删除临时目录: ${tempPath}`);
-
-            // 再次检查目录是否存在
-            const dirStillExists = fs.existsSync(tempPath);
-            console.log(`[${new Date().toLocaleString()}] 删除后临时目录是否仍然存在: ${dirStillExists}`);
-          } catch (rmError) {
-            console.error(`[${new Date().toLocaleString()}] 删除临时目录失败:`, rmError);
-            console.error(`[${new Date().toLocaleString()}] 错误类型: ${rmError.name}, 错误信息: ${rmError.message}`);
-
-            // 如果删除失败，尝试使用命令行工具删除
-            try {
-              console.log(`[${new Date().toLocaleString()}] 尝试使用命令行工具删除临时目录: ${tempPath}`);
-              if (process.platform === 'win32') {
-                // Windows下使用rd命令
-                const rdProcess = spawn('cmd', ['/c', 'rd', '/s', '/q', tempPath]);
-                rdProcess.on('close', (code) => {
-                  console.log(`[${new Date().toLocaleString()}] rd命令执行完成，退出码: ${code}`);
-                  // 再次检查目录是否存在
-                  const dirStillExists = fs.existsSync(tempPath);
-                  console.log(`[${new Date().toLocaleString()}] 命令行删除后临时目录是否仍然存在: ${dirStillExists}`);
-                });
-              } else {
-                // Linux/Mac下使用rm命令
-                const rmProcess = spawn('rm', ['-rf', tempPath]);
-                rmProcess.on('close', (code) => {
-                  console.log(`[${new Date().toLocaleString()}] rm命令执行完成，退出码: ${code}`);
-                });
-              }
-            } catch (cmdError) {
-              console.error(`[${new Date().toLocaleString()}] 命令行删除也失败:`, cmdError);
-            }
-          }
-        } else {
-          console.log(`[${new Date().toLocaleString()}] 未找到有效的临时目录路径`);
-        }
-      } catch (error) {
-        console.error(`[${new Date().toLocaleString()}] 处理文件删除时出错:`, error);
       }
-    } else {
-      console.log(`[${new Date().toLocaleString()}] 任务没有关联的输出文件`);
+
+      // 2. 删除与任务相关的所有临时目录
+      const tempDir = path.join(__dirname, 'temp');
+      if (fs.existsSync(tempDir)) {
+        const entries = fs.readdirSync(tempDir);
+        let deletedDirs = [];
+
+        // 2.1 先尝试删除数据库中记录的临时目录
+        if (taskInfo && taskInfo.tempDir && fs.existsSync(taskInfo.tempDir)) {
+          console.log(`[${new Date().toLocaleString()}] 开始删除数据库记录的临时目录: ${taskInfo.tempDir}`);
+          fs.rmSync(taskInfo.tempDir, { recursive: true, force: true });
+          console.log(`[${new Date().toLocaleString()}] 成功删除数据库记录的临时目录: ${taskInfo.tempDir}`);
+          deletedDirs.push(path.basename(taskInfo.tempDir));
+        }
+
+        // 2.2 如果有输出文件，尝试删除与输出文件名匹配的临时目录
+        if (taskInfo && taskInfo.outputFile) {
+          const baseNameWithoutExt = path.basename(taskInfo.outputFile, path.extname(taskInfo.outputFile));
+          const m3u8TempPath = path.join(tempDir, baseNameWithoutExt);
+
+          if (fs.existsSync(m3u8TempPath) && !deletedDirs.includes(baseNameWithoutExt)) {
+            console.log(`[${new Date().toLocaleString()}] 开始删除与输出文件匹配的临时目录: ${m3u8TempPath}`);
+            fs.rmSync(m3u8TempPath, { recursive: true, force: true });
+            console.log(`[${new Date().toLocaleString()}] 成功删除与输出文件匹配的临时目录: ${m3u8TempPath}`);
+            deletedDirs.push(baseNameWithoutExt);
+          }
+        }
+
+        // 2.3 尝试使用任务ID匹配系统临时目录
+        if (taskId) {
+          const matchingDirs = entries.filter(entry =>
+            (entry.includes(taskId) || // 完整任务ID
+            entry.startsWith(taskId.split('-')[0])) && // 任务ID的基础部分
+            !deletedDirs.includes(entry) // 避免重复删除
+          );
+
+          for (const dir of matchingDirs) {
+            const dirPath = path.join(tempDir, dir);
+            if (fs.statSync(dirPath).isDirectory()) {
+              console.log(`[${new Date().toLocaleString()}] 开始删除与任务ID匹配的临时目录: ${dirPath}`);
+              fs.rmSync(dirPath, { recursive: true, force: true });
+              console.log(`[${new Date().toLocaleString()}] 成功删除与任务ID匹配的临时目录: ${dirPath}`);
+              deletedDirs.push(dir);
+            }
+          }
+        }
+
+        // 2.4 尝试匹配文件名格式的临时目录（如 1002_1_2025-04-21_10-40-31）
+        const fileNamePattern = /^\d+_\d+_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/;
+        const datePattern = new RegExp(`\d{4}-\d{2}-\d{2}_\d{2}-\d{2}`);
+
+        // 获取当前日期字符串，用于匹配当天创建的临时目录
+        const today = new Date();
+        const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+        for (const entry of entries) {
+          // 如果已经删除过这个目录，跳过
+          if (deletedDirs.includes(entry)) continue;
+
+          // 检查是否是目录
+          const entryPath = path.join(tempDir, entry);
+          if (!fs.statSync(entryPath).isDirectory()) continue;
+
+          // 检查是否符合文件名格式或包含当天日期
+          if (fileNamePattern.test(entry) ||
+              (datePattern.test(entry) && entry.includes(dateStr))) {
+            console.log(`[${new Date().toLocaleString()}] 开始删除符合格式的临时目录: ${entryPath}`);
+            fs.rmSync(entryPath, { recursive: true, force: true });
+            console.log(`[${new Date().toLocaleString()}] 成功删除符合格式的临时目录: ${entryPath}`);
+            deletedDirs.push(entry);
+          }
+        }
+      }
+    } catch (error) {
+      console.error(`[${new Date().toLocaleString()}] 处理文件删除时出错:`, error);
     }
 
     // 从数据库中删除任务记录

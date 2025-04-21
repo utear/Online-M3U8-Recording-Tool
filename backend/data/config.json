@@ -7,7 +7,7 @@
     }
   ],
   "iptvUpdateInterval": 4,
-  "useProxy": false,
+  "useProxy": true,
   "proxyHost": "127.0.0.1",
   "proxyPort": 7890,
   "downloadPath": "./downloads",

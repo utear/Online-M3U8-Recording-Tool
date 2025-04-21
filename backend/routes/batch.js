@@ -210,36 +210,113 @@ router.delete('/:groupId', async (req, res) => {
                     });
                 });
 
+                // 1. 删除输出文件
                 if (taskInfo && taskInfo.outputFile) {
-                    // 删除输出文件
                     try {
-                        if (fs.existsSync(taskInfo.outputFile)) {
-                            fs.unlinkSync(taskInfo.outputFile);
-                            console.log(`成功删除批量任务输出文件: ${taskInfo.outputFile}`);
+                        // 获取文件名和目录
+                        const outputDir = path.dirname(taskInfo.outputFile);
+                        const baseNameWithoutExt = path.basename(taskInfo.outputFile, path.extname(taskInfo.outputFile));
+
+                        // 列出目录中的所有文件
+                        if (fs.existsSync(outputDir)) {
+                            const files = fs.readdirSync(outputDir);
+                            // 查找匹配的文件
+                            const matchingFiles = files.filter(file => file.startsWith(baseNameWithoutExt));
+
+                            if (matchingFiles.length > 0) {
+                                console.log(`找到匹配的输出文件: ${matchingFiles.join(', ')}`);
+
+                                // 删除所有匹配的文件
+                                for (const file of matchingFiles) {
+                                    const filePath = path.join(outputDir, file);
+                                    fs.unlinkSync(filePath);
+                                    console.log(`成功删除输出文件: ${filePath}`);
+                                }
+                            } else {
+                                console.log(`未找到匹配的输出文件: ${baseNameWithoutExt}`);
+                            }
                         }
                     } catch (fileError) {
-                        console.error(`删除批量任务输出文件失败: ${taskInfo.outputFile}`, fileError);
+                        console.error(`删除输出文件失败:`, fileError);
                     }
+                }
 
-                    // 删除临时目录
-                    let tempPath = taskInfo.tempDir;
+                // 2. 删除与任务相关的所有临时目录
+                try {
+                    const tempDir = path.join(__dirname, '..', 'temp');
+                    if (fs.existsSync(tempDir)) {
+                        const entries = fs.readdirSync(tempDir);
+                        let deletedDirs = [];
 
-                    // 如果数据库中没有保存临时目录路径，尝试从文件名推断
-                    if (!tempPath && taskInfo.outputFile) {
-                        const fileName = path.basename(taskInfo.outputFile);
-                        const tempDirName = fileName.replace(/\.[^/.]+$/, '');
-                        tempPath = path.join(__dirname, '..', 'temp', tempDirName);
-                        console.log(`从文件名推断的临时目录路径: ${tempPath}`);
-                    }
+                        // 2.1 先尝试删除数据库中记录的临时目录
+                        if (taskInfo && taskInfo.tempDir && fs.existsSync(taskInfo.tempDir)) {
+                            console.log(`开始删除数据库记录的临时目录: ${taskInfo.tempDir}`);
+                            fs.rmSync(taskInfo.tempDir, { recursive: true, force: true });
+                            console.log(`成功删除数据库记录的临时目录: ${taskInfo.tempDir}`);
+                            deletedDirs.push(path.basename(taskInfo.tempDir));
+                        }
 
-                    if (tempPath && fs.existsSync(tempPath)) {
-                        try {
-                            fs.rmSync(tempPath, { recursive: true, force: true });
-                            console.log(`成功删除批量任务临时目录: ${tempPath}`);
-                        } catch (dirError) {
-                            console.error(`删除批量任务临时目录失败: ${tempPath}`, dirError);
+                        // 2.2 如果有输出文件，尝试删除与输出文件名匹配的临时目录
+                        if (taskInfo && taskInfo.outputFile) {
+                            const baseNameWithoutExt = path.basename(taskInfo.outputFile, path.extname(taskInfo.outputFile));
+                            const m3u8TempPath = path.join(tempDir, baseNameWithoutExt);
+
+                            if (fs.existsSync(m3u8TempPath) && !deletedDirs.includes(baseNameWithoutExt)) {
+                                console.log(`开始删除与输出文件匹配的临时目录: ${m3u8TempPath}`);
+                                fs.rmSync(m3u8TempPath, { recursive: true, force: true });
+                                console.log(`成功删除与输出文件匹配的临时目录: ${m3u8TempPath}`);
+                                deletedDirs.push(baseNameWithoutExt);
+                            }
+                        }
+
+                        // 2.3 尝试使用任务ID匹配系统临时目录
+                        const taskIdPattern = task ? task.id : null;
+                        if (taskIdPattern) {
+                            const matchingDirs = entries.filter(entry =>
+                                (entry.includes(taskIdPattern) || // 完整任务ID
+                                entry.startsWith(taskIdPattern.split('-')[0])) && // 任务ID的基础部分
+                                !deletedDirs.includes(entry) // 避免重复删除
+                            );
+
+                            for (const dir of matchingDirs) {
+                                const dirPath = path.join(tempDir, dir);
+                                if (fs.statSync(dirPath).isDirectory()) {
+                                    console.log(`开始删除与任务ID匹配的临时目录: ${dirPath}`);
+                                    fs.rmSync(dirPath, { recursive: true, force: true });
+                                    console.log(`成功删除与任务ID匹配的临时目录: ${dirPath}`);
+                                    deletedDirs.push(dir);
+                                }
+                            }
+                        }
+
+                        // 2.4 尝试匹配文件名格式的临时目录（如 1002_1_2025-04-21_10-40-31）
+                        const fileNamePattern = /^\d+_\d+_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/;
+                        const datePattern = new RegExp(`\d{4}-\d{2}-\d{2}_\d{2}-\d{2}`);
+
+                        // 获取当前日期字符串，用于匹配当天创建的临时目录
+                        const today = new Date();
+                        const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+                        for (const entry of entries) {
+                            // 如果已经删除过这个目录，跳过
+                            if (deletedDirs.includes(entry)) continue;
+
+                            // 检查是否是目录
+                            const entryPath = path.join(tempDir, entry);
+                            if (!fs.statSync(entryPath).isDirectory()) continue;
+
+                            // 检查是否符合文件名格式或包含当天日期
+                            if (fileNamePattern.test(entry) ||
+                                (datePattern.test(entry) && entry.includes(dateStr))) {
+                                console.log(`开始删除符合格式的临时目录: ${entryPath}`);
+                                fs.rmSync(entryPath, { recursive: true, force: true });
+                                console.log(`成功删除符合格式的临时目录: ${entryPath}`);
+                                deletedDirs.push(entry);
+                            }
                         }
                     }
+                } catch (dirError) {
+                    console.error(`删除临时目录失败:`, dirError);
                 }
             } catch (error) {
                 console.error(`删除批量任务文件失败:`, error);

@@ -1431,16 +1431,18 @@ function AppContent() {
 
   useEffect(() => {
     // 设置表单的初始值
-    form.setFieldsValue({
-      'save-dir': './downloads',
-      'tmp-dir': './temp',
-      'check-segments-count': true,
-      'append-url-params': true,
-      'live-real-time-merge': true,
-      'live-keep-segments': true,
-      'thread-count': '4'
-    });
-  }, []);
+    if (form) {
+      form.setFieldsValue({
+        'save-dir': './downloads',
+        'tmp-dir': './temp',
+        'check-segments-count': true,
+        'append-url-params': true,
+        'live-real-time-merge': true,
+        'live-keep-segments': true,
+        'thread-count': '4'
+      });
+    }
+  }, [form]);
 
   const handleFormValuesChange = (changedValues, allValues) => {
     const formattedValues = { ...allValues };
@@ -1831,22 +1833,40 @@ function AppContent() {
     navigate('/login');
   };
 
-  const userMenu = (
-    <Menu>
-      <Menu.Item key="username" disabled>
-        <UserOutlined /> {user.username}
-      </Menu.Item>
-      <Menu.Divider />
-      {(user.role === 'admin' || user.role === 'superadmin') && (
-        <Menu.Item key="dashboard" onClick={() => navigate('/dashboard')}>
-          <DashboardOutlined /> 管理员仪表盘
-        </Menu.Item>
-      )}
-      <Menu.Item key="logout" onClick={handleLogout}>
-        <LogoutOutlined /> 退出登录
-      </Menu.Item>
-    </Menu>
-  );
+  const userMenuItems = [
+    {
+      key: 'username',
+      disabled: true,
+      label: (
+        <span>
+          <UserOutlined /> {user.username}
+        </span>
+      ),
+    },
+    {
+      type: 'divider',
+    },
+    ...(user.role === 'admin' || user.role === 'superadmin' ? [
+      {
+        key: 'dashboard',
+        label: (
+          <span>
+            <DashboardOutlined /> 管理员仪表盘
+          </span>
+        ),
+        onClick: () => navigate('/dashboard'),
+      }
+    ] : []),
+    {
+      key: 'logout',
+      label: (
+        <span>
+          <LogoutOutlined /> 退出登录
+        </span>
+      ),
+      onClick: handleLogout,
+    },
+  ];
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -1893,7 +1913,7 @@ function AppContent() {
             },
           ]}
         />
-        <Dropdown overlay={userMenu} placement="bottomRight">
+        <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
           <div style={{
             cursor: 'pointer',
             color: '#fff',

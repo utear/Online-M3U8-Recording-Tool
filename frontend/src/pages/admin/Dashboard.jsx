@@ -104,7 +104,7 @@ const Dashboard = () => {
 
     // 设置定时刷新，每10秒自动刷新一次
     const refreshInterval = setInterval(() => {
-      console.log('自动刷新仪表盘数据...');
+      // console.log('自动刷新仪表盘数据...');
       fetchStatistics();
       fetchRecentTasks();
     }, 10000);

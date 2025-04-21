@@ -157,35 +157,118 @@ router.delete('/:id', async (req, res) => {
       }
     }
 
-    // 删除任务相关的文件
+    // 1. 删除输出文件
     if (task.outputFile) {
-      console.log(`[${new Date().toLocaleString()}] [tasks.js] 尝试删除输出文件: ${task.outputFile}`);
+      console.log(`[${new Date().toLocaleString()}] [tasks.js] 尝试删除输出文件`);
       try {
-        if (fs.existsSync(task.outputFile)) {
-          fs.unlinkSync(task.outputFile);
-          console.log(`[${new Date().toLocaleString()}] [tasks.js] 成功删除输出文件: ${task.outputFile}`);
-        } else {
-          console.log(`[${new Date().toLocaleString()}] [tasks.js] 输出文件不存在: ${task.outputFile}`);
+        // 获取文件名和目录
+        const outputDir = path.dirname(task.outputFile);
+        const baseNameWithoutExt = path.basename(task.outputFile, path.extname(task.outputFile));
+
+        // 列出目录中的所有文件
+        if (fs.existsSync(outputDir)) {
+          const files = fs.readdirSync(outputDir);
+          // 查找匹配的文件
+          const matchingFiles = files.filter(file => file.startsWith(baseNameWithoutExt));
+
+          if (matchingFiles.length > 0) {
+            console.log(`[${new Date().toLocaleString()}] [tasks.js] 找到匹配的输出文件: ${matchingFiles.join(', ')}`);
+
+            // 删除所有匹配的文件
+            for (const file of matchingFiles) {
+              const filePath = path.join(outputDir, file);
+              fs.unlinkSync(filePath);
+              console.log(`[${new Date().toLocaleString()}] [tasks.js] 成功删除输出文件: ${filePath}`);
+            }
+          } else {
+            console.log(`[${new Date().toLocaleString()}] [tasks.js] 未找到匹配的输出文件: ${baseNameWithoutExt}`);
+          }
         }
       } catch (fileError) {
         console.error(`[${new Date().toLocaleString()}] [tasks.js] 删除输出文件失败:`, fileError);
       }
     }
 
-    // 删除临时目录
-    if (task.tempDir) {
-      console.log(`[${new Date().toLocaleString()}] [tasks.js] 尝试删除临时目录: ${task.tempDir}`);
-      try {
-        if (fs.existsSync(task.tempDir)) {
+    // 2. 删除与任务相关的所有临时目录
+    try {
+      const tempDir = path.join(__dirname, '..', 'temp');
+      if (fs.existsSync(tempDir)) {
+        const entries = fs.readdirSync(tempDir);
+        let deletedDirs = [];
+
+        // 2.1 先尝试删除数据库中记录的临时目录
+        if (task.tempDir && fs.existsSync(task.tempDir)) {
+          console.log(`[${new Date().toLocaleString()}] [tasks.js] 开始删除数据库记录的临时目录: ${task.tempDir}`);
           fs.rmSync(task.tempDir, { recursive: true, force: true });
-          console.log(`[${new Date().toLocaleString()}] [tasks.js] 成功删除临时目录: ${task.tempDir}`);
-        } else {
-          console.log(`[${new Date().toLocaleString()}] [tasks.js] 临时目录不存在: ${task.tempDir}`);
+          console.log(`[${new Date().toLocaleString()}] [tasks.js] 成功删除数据库记录的临时目录: ${task.tempDir}`);
+          deletedDirs.push(path.basename(task.tempDir));
         }
-      } catch (dirError) {
-        console.error(`[${new Date().toLocaleString()}] [tasks.js] 删除临时目录失败:`, dirError);
-        // 尝试使用命令行工具删除
-        try {
+
+        // 2.2 如果有输出文件，尝试删除与输出文件名匹配的临时目录
+        if (task.outputFile) {
+          const baseNameWithoutExt = path.basename(task.outputFile, path.extname(task.outputFile));
+          const m3u8TempPath = path.join(tempDir, baseNameWithoutExt);
+
+          if (fs.existsSync(m3u8TempPath) && !deletedDirs.includes(baseNameWithoutExt)) {
+            console.log(`[${new Date().toLocaleString()}] [tasks.js] 开始删除与输出文件匹配的临时目录: ${m3u8TempPath}`);
+            fs.rmSync(m3u8TempPath, { recursive: true, force: true });
+            console.log(`[${new Date().toLocaleString()}] [tasks.js] 成功删除与输出文件匹配的临时目录: ${m3u8TempPath}`);
+            deletedDirs.push(baseNameWithoutExt);
+          }
+        }
+
+        // 2.3 尝试使用任务ID匹配系统临时目录
+        const taskIdPattern = task.id;
+        if (taskIdPattern) {
+          const matchingDirs = entries.filter(entry =>
+            (entry.includes(taskIdPattern) || // 完整任务ID
+            entry.startsWith(taskIdPattern.split('-')[0])) && // 任务ID的基础部分
+            !deletedDirs.includes(entry) // 避免重复删除
+          );
+
+          for (const dir of matchingDirs) {
+            const dirPath = path.join(tempDir, dir);
+            if (fs.statSync(dirPath).isDirectory()) {
+              console.log(`[${new Date().toLocaleString()}] [tasks.js] 开始删除与任务ID匹配的临时目录: ${dirPath}`);
+              fs.rmSync(dirPath, { recursive: true, force: true });
+              console.log(`[${new Date().toLocaleString()}] [tasks.js] 成功删除与任务ID匹配的临时目录: ${dirPath}`);
+              deletedDirs.push(dir);
+            }
+          }
+        }
+
+        // 2.4 尝试匹配文件名格式的临时目录（如 1002_1_2025-04-21_10-40-31）
+        const fileNamePattern = /^\d+_\d+_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/;
+        const datePattern = new RegExp(`\d{4}-\d{2}-\d{2}_\d{2}-\d{2}`);
+
+        // 获取当前日期字符串，用于匹配当天创建的临时目录
+        const today = new Date();
+        const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+        for (const entry of entries) {
+          // 如果已经删除过这个目录，跳过
+          if (deletedDirs.includes(entry)) continue;
+
+          // 检查是否是目录
+          const entryPath = path.join(tempDir, entry);
+          if (!fs.statSync(entryPath).isDirectory()) continue;
+
+          // 检查是否符合文件名格式或包含当天日期
+          if (fileNamePattern.test(entry) ||
+              (datePattern.test(entry) && entry.includes(dateStr))) {
+            console.log(`[${new Date().toLocaleString()}] [tasks.js] 开始删除符合格式的临时目录: ${entryPath}`);
+            fs.rmSync(entryPath, { recursive: true, force: true });
+            console.log(`[${new Date().toLocaleString()}] [tasks.js] 成功删除符合格式的临时目录: ${entryPath}`);
+            deletedDirs.push(entry);
+          }
+        }
+      }
+    } catch (dirError) {
+      console.error(`[${new Date().toLocaleString()}] [tasks.js] 删除临时目录失败:`, dirError);
+
+      // 如果删除失败，尝试使用命令行工具删除
+      try {
+        if (task.tempDir) {
           console.log(`[${new Date().toLocaleString()}] [tasks.js] 尝试使用命令行工具删除临时目录: ${task.tempDir}`);
           if (process.platform === 'win32') {
             // Windows下使用rd命令
@@ -202,9 +285,9 @@ router.delete('/:id', async (req, res) => {
               console.log(`[${new Date().toLocaleString()}] [tasks.js] rm命令执行完成，退出码: ${code}`);
             });
           }
-        } catch (cmdError) {
-          console.error(`[${new Date().toLocaleString()}] [tasks.js] 命令行删除也失败:`, cmdError);
         }
+      } catch (cmdError) {
+        console.error(`[${new Date().toLocaleString()}] [tasks.js] 命令行删除也失败:`, cmdError);
       }
     }
 

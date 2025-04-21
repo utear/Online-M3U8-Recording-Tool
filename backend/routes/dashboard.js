@@ -259,16 +259,85 @@ async function getDirectoryContents(directory, includeSubdirs = true) {
 
 // 根据临时目录路径查找关联的任务
 async function getTaskByTempDir(tempDirPath) {
-  return new Promise((resolve, reject) => {
-    db.get('SELECT * FROM tasks WHERE tempDir = ?', [tempDirPath], (err, row) => {
-      if (err) {
-        console.error('查询任务失败:', err);
-        reject(err);
-      } else {
-        resolve(row);
-      }
+  try {
+    // 1. 首先尝试直接匹配临时目录路径
+    const exactMatch = await new Promise((resolve, reject) => {
+      db.get('SELECT * FROM tasks WHERE tempDir = ?', [tempDirPath], (err, row) => {
+        if (err) {
+          console.error('查询任务失败:', err);
+          reject(err);
+        } else {
+          resolve(row);
+        }
+      });
     });
-  });
+
+    if (exactMatch) {
+      return exactMatch;
+    }
+
+    // 2. 如果没有直接匹配，尝试使用LIKE查询
+    const dirName = path.basename(tempDirPath);
+    const likeMatch = await new Promise((resolve, reject) => {
+      db.get('SELECT * FROM tasks WHERE tempDir LIKE ?', [`%${dirName}%`], (err, row) => {
+        if (err) {
+          console.error('使用LIKE查询任务失败:', err);
+          reject(err);
+        } else {
+          resolve(row);
+        }
+      });
+    });
+
+    if (likeMatch) {
+      return likeMatch;
+    }
+
+    // 3. 如果还是没有匹配，尝试使用目录名中的日期时间部分进行匹配
+    const dateTimeMatch = dirName.match(/(\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2})/);
+    if (dateTimeMatch) {
+      const dateTimePart = dateTimeMatch[1];
+      const dateTimeResult = await new Promise((resolve, reject) => {
+        db.get('SELECT * FROM tasks WHERE outputFile LIKE ?', [`%${dateTimePart}%`], (err, row) => {
+          if (err) {
+            console.error('使用日期时间查询任务失败:', err);
+            reject(err);
+          } else {
+            resolve(row);
+          }
+        });
+      });
+
+      if (dateTimeResult) {
+        return dateTimeResult;
+      }
+    }
+
+    // 4. 如果还是没有匹配，尝试使用目录名中的任务ID进行匹配
+    const taskIdMatch = dirName.match(/(\d{13,})/);
+    if (taskIdMatch) {
+      const taskId = taskIdMatch[1];
+      const taskIdResult = await new Promise((resolve, reject) => {
+        db.get('SELECT * FROM tasks WHERE id = ?', [taskId], (err, row) => {
+          if (err) {
+            console.error('使用任务ID查询任务失败:', err);
+            reject(err);
+          } else {
+            resolve(row);
+          }
+        });
+      });
+
+      if (taskIdResult) {
+        return taskIdResult;
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.error('查找临时目录关联任务失败:', error);
+    return null;
+  }
 }
 
 // 获取下载目录文件列表

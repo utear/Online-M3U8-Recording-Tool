@@ -5,8 +5,6 @@ import DownloadFiles from './DownloadFiles';
 import TempFiles from './TempFiles';
 import axios from 'axios';
 
-const { TabPane } = Tabs;
-
 const FileManagement = () => {
   const [loading, setLoading] = useState(false);
   const [downloadFiles, setDownloadFiles] = useState([]);
@@ -107,41 +105,47 @@ const FileManagement = () => {
   return (
     <Card title="文件管理">
       <Spin spinning={loading}>
-        <Tabs activeKey={activeKey} onChange={handleTabChange}>
-          <TabPane
-            tab={
-              <span>
-                <FileOutlined />
-                下载文件
-              </span>
+        <Tabs
+          activeKey={activeKey}
+          onChange={handleTabChange}
+          items={[
+            {
+              key: '1',
+              label: (
+                <span>
+                  <FileOutlined />
+                  下载文件
+                </span>
+              ),
+              children: (
+                <DownloadFiles
+                  files={downloadFiles}
+                  totalSize={downloadTotalSize}
+                  onDelete={handleDeleteDownloadFile}
+                  onRefresh={fetchDownloadFiles}
+                />
+              )
+            },
+            {
+              key: '2',
+              label: (
+                <span>
+                  <FolderOutlined />
+                  临时文件
+                </span>
+              ),
+              children: (
+                <TempFiles
+                  files={tempFiles}
+                  totalSize={tempTotalSize}
+                  onDelete={handleDeleteTempFolder}
+                  onClean={handleCleanTemp}
+                  onRefresh={fetchTempFiles}
+                />
+              )
             }
-            key="1"
-          >
-            <DownloadFiles
-              files={downloadFiles}
-              totalSize={downloadTotalSize}
-              onDelete={handleDeleteDownloadFile}
-              onRefresh={fetchDownloadFiles}
-            />
-          </TabPane>
-          <TabPane
-            tab={
-              <span>
-                <FolderOutlined />
-                临时文件
-              </span>
-            }
-            key="2"
-          >
-            <TempFiles
-              files={tempFiles}
-              totalSize={tempTotalSize}
-              onDelete={handleDeleteTempFolder}
-              onClean={handleCleanTemp}
-              onRefresh={fetchTempFiles}
-            />
-          </TabPane>
-        </Tabs>
+          ]}
+        />
       </Spin>
     </Card>
   );
