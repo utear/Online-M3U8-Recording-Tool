@@ -51,7 +51,7 @@
   - 基于用户权限的访问控制
   - 自动文件完整性检查
 
-## 图片演示
+## 图片演示（非最新版本，请以最新版本为准）
 ![image](https://github.com/user-attachments/assets/e131c55d-2611-4061-bdd3-bae8d147941c)
 ![image](https://github.com/user-attachments/assets/a629356c-7a28-43c4-a00e-37e466eed950)
 ![image](https://github.com/user-attachments/assets/377f3941-fd94-4f3a-ab57-c609ccf03958)
@@ -60,6 +60,13 @@
 ![image](https://github.com/user-attachments/assets/d2ae4876-8b9e-4374-8cc9-52290e65b432)
 ![image](https://github.com/user-attachments/assets/ee183707-6057-408b-ab8f-671fe79b3908)
 ![image](https://github.com/user-attachments/assets/ab5c9fe9-9317-41c8-bf02-1036cd36540f)
+![5415bb067a4f4c0e8e2cf211c549b30](https://github.com/user-attachments/assets/f206df11-2e9f-444f-936e-33ca57a3ac7b)
+![4bf057df5daeb9acd78b4056f5a9a3f](https://github.com/user-attachments/assets/15526f5c-2303-4709-962f-c5114008ff40)
+![aabb287be00789400cae85dc260c8ac](https://github.com/user-attachments/assets/e94d45ea-08cc-403e-9a84-908f88f7575f)
+![012d78fa6c912f95a53f9703911bf2b](https://github.com/user-attachments/assets/23f2c25d-4ea9-4ddd-8f79-2a868f4b3f3a)
+![c1f654a176faaeefc975d65804172f5](https://github.com/user-attachments/assets/479b6da8-2d3d-44c8-9be6-bc177563be85)
+![bf034128da5a11b7623782e871d4929](https://github.com/user-attachments/assets/d0988dbd-1bfd-4968-9cb2-c3ff161ab04e)
+
 
 ## 快速开始
 
