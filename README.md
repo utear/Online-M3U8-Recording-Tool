@@ -56,20 +56,24 @@
   - 自动文件完整性检查
 
 ## 图片演示（非最新版本，请以最新版本为准）
-![image](https://github.com/user-attachments/assets/e131c55d-2611-4061-bdd3-bae8d147941c)
-![image](https://github.com/user-attachments/assets/a629356c-7a28-43c4-a00e-37e466eed950)
-![image](https://github.com/user-attachments/assets/377f3941-fd94-4f3a-ab57-c609ccf03958)
-![image](https://github.com/user-attachments/assets/1508b9f2-96c4-4095-9a1b-70b26dc76dac)
-![image](https://github.com/user-attachments/assets/2b3d35df-bb2e-4305-a617-561c58b76c92)
-![image](https://github.com/user-attachments/assets/d2ae4876-8b9e-4374-8cc9-52290e65b432)
-![image](https://github.com/user-attachments/assets/ee183707-6057-408b-ab8f-671fe79b3908)
-![image](https://github.com/user-attachments/assets/ab5c9fe9-9317-41c8-bf02-1036cd36540f)
+ - 用户端：
+![image](https://github.com/user-attachments/assets/4f00dac2-5d2a-4be8-9e91-5c8f428a68a8)
+![image](https://github.com/user-attachments/assets/3c96dca0-db66-4aae-8ea9-6348bd9093ab)
+![image](https://github.com/user-attachments/assets/3ba2b1a9-ab57-4567-8767-ff03c7bda0c1)
+![image](https://github.com/user-attachments/assets/ed2c63f9-1b61-4d2d-9e33-ff2a267d5fcb)
+![image](https://github.com/user-attachments/assets/44d53cd5-6719-42eb-91e1-fc3cfec959ea)
+![image](https://github.com/user-attachments/assets/915209d7-9338-4acf-9e29-816f9c6dbb28)
+![image](https://github.com/user-attachments/assets/9e1f1607-123e-4799-976f-37c6cf18800d)
+![image](https://github.com/user-attachments/assets/69f8970c-5bc0-4edc-833e-e2b35026c7e3)
+
+ - 仪表盘：
 ![5415bb067a4f4c0e8e2cf211c549b30](https://github.com/user-attachments/assets/f206df11-2e9f-444f-936e-33ca57a3ac7b)
 ![4bf057df5daeb9acd78b4056f5a9a3f](https://github.com/user-attachments/assets/15526f5c-2303-4709-962f-c5114008ff40)
 ![aabb287be00789400cae85dc260c8ac](https://github.com/user-attachments/assets/e94d45ea-08cc-403e-9a84-908f88f7575f)
 ![012d78fa6c912f95a53f9703911bf2b](https://github.com/user-attachments/assets/23f2c25d-4ea9-4ddd-8f79-2a868f4b3f3a)
 ![c1f654a176faaeefc975d65804172f5](https://github.com/user-attachments/assets/479b6da8-2d3d-44c8-9be6-bc177563be85)
 ![bf034128da5a11b7623782e871d4929](https://github.com/user-attachments/assets/d0988dbd-1bfd-4968-9cb2-c3ff161ab04e)
+
 
 
 ## 快速开始
