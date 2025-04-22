@@ -47,3 +47,5 @@ backend/data/users.db
 sync-config.js
 sync-from-github.js
 sync-readme.md
+backend/test/test-genre-format.txt
+backend/test/test-iptv-parser.js

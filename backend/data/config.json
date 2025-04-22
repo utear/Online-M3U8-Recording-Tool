@@ -4,6 +4,11 @@
       "name": "默认IPTV源",
       "url": "https://github.com/vbskycn/iptv/blob/master/tv/iptv4.m3u",
       "enabled": true
+    },
+    {
+      "name": "酒店iptv",
+      "url": "https://raw.githubusercontent.com/ssili126/tv/main/itvlist.txt",
+      "enabled": true
     }
   ],
   "iptvUpdateInterval": 4,

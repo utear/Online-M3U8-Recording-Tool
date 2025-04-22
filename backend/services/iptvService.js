@@ -151,23 +151,81 @@ class IPTVService {
                     const lines = data.split('\n');
                     const sourceChannels = [];
 
-                    for (let i = 0; i < lines.length - 1; i++) {
-                        if (lines[i].startsWith('#EXTINF')) {
-                            const info = lines[i];
-                            const url = lines[i + 1];
+                    // 检测文件格式
+                    const isStandardM3U = lines.some(line => line.startsWith('#EXTINF'));
+                    const isGenreFormat = lines.some(line => line.includes(',#genre#'));
 
-                            if (!url || url.trim().startsWith('#')) continue; // 跳过无效URL
+                    if (isStandardM3U) {
+                        // 标准M3U格式解析
+                        for (let i = 0; i < lines.length - 1; i++) {
+                            if (lines[i].startsWith('#EXTINF')) {
+                                const info = lines[i];
+                                const url = lines[i + 1];
 
-                            const nameMatch = info.match(/tvg-name="([^"]+)"/);
-                            const groupMatch = info.match(/group-title="([^"]+)"/);
-                            const titleMatch = info.match(/,\s*(.+)$/);
+                                if (!url || url.trim().startsWith('#')) continue; // 跳过无效URL
 
-                            sourceChannels.push({
-                                name: nameMatch ? nameMatch[1] : (titleMatch ? titleMatch[1] : 'Unknown'),
-                                group: groupMatch ? groupMatch[1] : 'Other',
-                                url: url.trim(),
-                                source: source.name // 添加源信息
-                            });
+                                const nameMatch = info.match(/tvg-name="([^"]+)"/);
+                                const groupMatch = info.match(/group-title="([^"]+)"/);
+                                const titleMatch = info.match(/,\s*(.+)$/);
+
+                                sourceChannels.push({
+                                    name: nameMatch ? nameMatch[1] : (titleMatch ? titleMatch[1] : 'Unknown'),
+                                    group: groupMatch ? groupMatch[1] : 'Other',
+                                    url: url.trim(),
+                                    source: source.name // 添加源信息
+                                });
+                            }
+                        }
+                    } else if (isGenreFormat) {
+                        // 特殊格式解析 (频道分类,#genre# 格式)
+                        let currentGroup = 'Other';
+
+                        for (let i = 0; i < lines.length; i++) {
+                            const line = lines[i].trim();
+                            if (!line) continue; // 跳过空行
+
+                            // 检查是否是分组标记行
+                            if (line.includes(',#genre#')) {
+                                currentGroup = line.split(',')[0].trim();
+                                continue;
+                            }
+
+                            // 解析频道行 (格式: 频道名称,频道URL)
+                            const parts = line.split(',');
+                            if (parts.length >= 2) {
+                                const channelName = parts[0].trim();
+                                const channelUrl = parts[1].trim();
+
+                                if (channelUrl && !channelUrl.startsWith('#')) {
+                                    sourceChannels.push({
+                                        name: channelName || 'Unknown',
+                                        group: currentGroup,
+                                        url: channelUrl,
+                                        source: source.name
+                                    });
+                                }
+                            }
+                        }
+                    } else {
+                        // 尝试解析简单的名称,URL格式
+                        for (let i = 0; i < lines.length; i++) {
+                            const line = lines[i].trim();
+                            if (!line || line.startsWith('#')) continue;
+
+                            const parts = line.split(',');
+                            if (parts.length >= 2) {
+                                const channelName = parts[0].trim();
+                                const channelUrl = parts[1].trim();
+
+                                if (channelUrl) {
+                                    sourceChannels.push({
+                                        name: channelName || 'Unknown',
+                                        group: 'Other',
+                                        url: channelUrl,
+                                        source: source.name
+                                    });
+                                }
+                            }
                         }
                     }
 
